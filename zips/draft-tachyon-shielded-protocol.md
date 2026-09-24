@@ -17,7 +17,7 @@ BCP 14 [^BCP14] when, and only when, it appears in all capitals.
 
 # Abstract
 
-This document proposes the Tachyon shielded protocol, which defines a new shielded pool with various scalability advantages. Tachyon enables validators to prune nullifier state, and supports aggregation of ZK proofs.
+This document proposes the Tachyon shielded protocol, which defines a new shielded pool with various scalability advantages. Tachyon enables validators to prune nullifier state, and supports aggregation of ZK proofs. Tachyon intentionally omits the in-band secret dispersion mechanisms used in all of Zcash's previous shielded pools, so more-scalable payment protocols may be built on-top.
 
 # Motivation
 
@@ -43,6 +43,20 @@ We are thus motivated to deploy a new shielded protocol focused on scalability, 
 Tachyon remediates both bottlenecks by leveraging recursive proofs:
 - By requiring users to privately obtain and supply a recursive zero-knowledge proof of their notes spendability along with their transaction, nullifier state may be organized into [_epochs_](#epochs) and periodically pruned by validators.
 - By allowing proofs from multiple transactions to be aggregated into a single proof, storage and verification costs can be amortized for proof data.
+
+Tachyon also separates shielded transfers from payment-data delivery. Orchard
+distributes note secrets in-band: transactions carry encrypted note plaintexts
+that recipients discover by scanning the chain and attempting decryption.
+Tachyon removes this built-in secret-distribution system from the shielded
+protocol, leaving secure delivery of note openings to payment protocols
+constructed on top.[^tachyon-secret-distribution]
+
+This separation removes the requirement for a protocol-defined ciphertext for
+every output and the associated transmission-key and viewing-key machinery. It permits payment delivery and discovery to evolve
+independently of consensus, including approaches that avoid scanning every
+transaction. It does not prohibit payment protocols from using opaque on-chain
+payloads; encryption, transport, and discovery are not prescribed by this
+ZIP.[^tachyon-payment-protocols]
 
 # Specification
 
@@ -181,8 +195,10 @@ The principal changes are:
   derived from $\mathsf{ak}$ and $\mathsf{nk}$ using domain-separated Poseidon,
   in place of Orchard's diversifier and diversified transmission key.
 - Orchard's viewing-key and diversified-address machinery is omitted from the
-  core protocol. Address management and payment-data exchange are handled by
-  higher-level, out-of-band protocols.
+  core protocol along with its built-in in-band secret-distribution system.
+  Address management, transmission keys, and note delivery are instead defined
+  by higher-level payment protocols, which may use out-of-band communication,
+  opaque on-chain payloads, or both.[^tachyon-payment-protocols]
 
 Key components and derivation: [^protocol-tachyon-keys].
 Design and implementation: [^tachyon-keys] [^tachyon-key-derivation].
@@ -235,74 +251,72 @@ Nullifier derivation and its proof constraints MUST be implemented as specified
 in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 
 
-## Anchors
-
-
-## Actions
-
-
-### Spend actions
-
-
-### Output actions
-
-
-## Authorization
-
-
-## Value balance
-
-
-## Proof statements
-
-
-### Spend action statement
-
-
-### Output action statement
-
-
 ## Consensus rules
 
+Tachyon consensus validation MUST be implemented as specified in the Zcash
+Protocol Specification.[^protocol-tachyon-consensus] The principal checks are:
 
-# Privacy Implications
+- Bundle fields have canonical encodings and satisfy their type and range
+  constraints. Each action's value commitment and authorization key are
+  non-identity Pallas points. A bundle with no actions has zero value balance.
+- Every action signature and each bundle's binding signature verify over the
+  containing transaction's signature hash. The binding signature enforces
+  consistency between the action value commitments and the declared value
+  balance. These checks remain per-transaction after aggregation.
+- Each stamp's declared coverage matches the actions in its own bundle and all
+  bundles referring to it. Those references resolve to a proof-bearing bundle in
+  the same block, the covered action descriptors are distinct, and the stamp
+  publishes exactly two tachygrams per covered action.
+- Each stamp proof verifies against its anchor and the multiset commitments
+  reconstructed from the covered action digests and published tachygrams.
+- Each stamp anchor identifies an accepted end-of-block pool state in the
+  epoch of the block being validated or the immediately preceding epoch.
+- All tachygrams in a block are distinct, and none repeats a tachygram published
+  in an earlier block of the current or immediately preceding epoch. This check
+  treats note commitments, nullifiers, and padding identically.
+- The pool-state accumulator advances through the block's proof stamps in
+  transaction order, incorporating epoch transitions as specified under
+  [Tachygram accumulator](#tachygramaccumulator).
+
+These checks are reflected in the bundle validation implementation and Zakura's
+Tachyon integration.[^tachyon-bundle-validation] [^zakura-tachyon-consensus]
+Wire-format details and cross-transaction coverage are specified by the
+[bundle-format](draft-tachyon-bundle-format.md) and
+[aggregation](draft-tachyon-aggregation-protocol.md) ZIPs.
 
 
-## Observable protocol data
+# Privacy and Security Implications
 
-
-## Linkability
-
-
-# Requirements
-
+Removing in-band secret distribution does not remove the need to protect note
+secrets. Confidential delivery, recipient authentication, and payment discovery
+are responsibilities of the chosen payment protocol. A valid shielded proof does
+not establish that the intended recipient has received or can recover the note
+opening. Privacy against network observers and leakage through payment metadata
+also depend on that higher-level protocol.[^tachyon-payment-protocols]
 
 # Non-requirements
 
-
-# Rationale
-
-
-# Security Implications
-
-
-## Soundness
-
-
-## Nullifier security
-
-
-# Test vectors
-
+The Tachyon shielded protocol is unopinionated about the payment protocols
+constructed on top of it. This ZIP does not prescribe payment-address formats,
+note encryption, secret distribution, incoming-payment discovery, or selective
+disclosure. Payment protocols may use out-of-band communication, opaque on-chain
+payloads, or a combination of both, provided the resulting shielded transactions
+satisfy Tachyon's consensus rules.[^tachyon-payment-protocols]
 
 # Deployment
 
+The Tachyon shielded protocol will be deployed with
+[NuTachyon](draft-tachyon-nutachyon-upgrade.md).
 
-# Reference implementation
 
+# Reference Implementation
 
-# Open issues
-
+The [Tachyon repository](https://github.com/tachyon-zcash/tachyon) implements the
+shielded protocol in Rust, using the recursive proof-carrying data framework in
+the [Ragu repository](https://github.com/tachyon-zcash/ragu). Experimental
+full-node integration is provided by
+[Zakura PR #795](https://github.com/zakura-core/zakura/pull/795), with corresponding
+transaction-format, digest, value-accounting, and history-tree support in [zakura-core/common PR #178](https://github.com/zakura-core/common/pull/178).
 
 # References
 
@@ -322,6 +336,8 @@ in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 
 [^protocol-tachyon-nullifiers]: Zcash Protocol Specification, Tachyon nullifier derivation and proof constraints. TODO: Add the version and section references once specified.
 
+[^protocol-tachyon-consensus]: Zcash Protocol Specification, Tachyon transaction and block consensus rules. TODO: Add the version and section references once specified.
+
 [^protocol-tachyon-multisetcommit]: Zcash Protocol Specification, Tachyon multiset commitment construction. TODO: Add the version and section references once specified.
 
 [^protocol-tachyon-accumulator]: Zcash Protocol Specification, Tachygram accumulator and pool-state anchor updates. TODO: Add the version and section references once specified.
@@ -329,6 +345,10 @@ in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 [^protocol-tachyon-keys]: Zcash Protocol Specification, Tachyon key components and derivation. TODO: Add the version and section references once specified.
 
 [^tachyon-keys]: [The Tachyon Book: Key Hierarchy](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/keys.md)
+
+[^tachyon-secret-distribution]: Sean Bowe. [Tachyaction at a Distance](https://seanbowe.com/blog/tachyaction-at-a-distance/), May 15, 2025.
+
+[^tachyon-payment-protocols]: [The Tachyon Book: A Deep Dive on Tachyon — Decoupling Payment Protocol from Shielded Protocol](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/revisit.md)
 
 [^tachyon-key-derivation]: [Tachyon reference implementation: Key derivation](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/keys/private.rs)
 
@@ -347,6 +367,10 @@ in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 [^tachyon-multisetcommit]: [Tachyon reference implementation: Multiset commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/primitives/sets.rs)
 
 [^tachyon-proof-tree]: [The Tachyon Book: Proof tree](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/proof-tree.md)
+
+[^tachyon-bundle-validation]: [Tachyon reference implementation: Bundle validation](https://github.com/tachyon-zcash/tachyon/blob/2dc7010c3e7771c539fd1c03a06bc6be1a7316c7/crates/tachyon/src/bundle/mod.rs)
+
+[^zakura-tachyon-consensus]: [Zakura PR #795: Add NuTachyon and V7 transactions](https://github.com/zakura-core/zakura/pull/795), implementation reviewed at commit `4802324172e38ede0f16fe593ad3bf5f0dc8edf4`.
 
 [^zip-0224]: [ZIP 224: Orchard Shielded Protocol](zip-0224.rst)
 
