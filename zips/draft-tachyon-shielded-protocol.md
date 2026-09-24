@@ -188,16 +188,51 @@ Key components and derivation: [^protocol-tachyon-keys].
 Design and implementation: [^tachyon-keys] [^tachyon-key-derivation].
 
 
-## Signature schemes
+## Notes and note commitments
 
+A Tachyon note has the form $(\mathsf{pk}, v, \psi, \mathsf{rcm})$, where
+$\mathsf{pk}$ is the recipient's payment key, $v$ is a non-negative value in
+zatoshis, $\psi$ is the nullifier trapdoor, and $\mathsf{rcm}$ is note-commitment
+randomness. The payment key, nullifier trapdoor, and commitment randomness are Pallas base-field elements. The value is a non-negative integer amount in zatoshis, encoded as a field element when computing the commitment. Unlike
+Orchard, the note has no $\rho$ field linking it to the nullifier of a spend in
+the same action.
 
-## Notes
+The note commitment is a field element computed using domain-separated Poseidon
+in place of Orchard's Sinsemilla construction:
 
+$$\mathsf{cm} = \mathsf{Poseidon}_{\texttt{Tachyon-CmDerive}}(\mathsf{rcm}, \mathsf{pk}, v, \psi).$$
 
-## Note commitments
+An output publishes $\mathsf{cm}$ together with a padding tachygram derived from
+the same note fields under a separate domain. The note opening is not published
+as part of the shielded protocol.[^tachyon-note-implementation] [^tachyon-tachygrams]
+
+The note structure and commitment MUST be implemented as specified in the Zcash
+Protocol Specification.[^protocol-tachyon-notecommit]
 
 
 ## Nullifiers
+
+Unlike Orchard's fixed nullifier per note, Tachyon uses _evolving nullifiers_,
+deriving a different nullifier for each [epoch](#epochs).[^evolving-nullifiers]
+A per-note master key $\mathsf{mk}$ is derived from the note's $\psi$ and the
+recipient's nullifier key $\mathsf{nk}$. Abstractly:
+
+$$\mathsf{mk} = \mathsf{Poseidon}_{\texttt{Tachyon-NfMaster}}(\psi, \mathsf{nk}),$$
+
+$$\mathsf{nf}_e = \mathsf{PRF}^{\mathsf{nfTachyon}}_{\mathsf{mk}}(e).$$
+
+The PRF uses a domain-separated Poseidon sponge to derive groups of consecutive
+epochs' nullifiers. Its outputs are Pallas base-field elements.[^tachyon-nullifiers]
+
+A spend publishes $\mathsf{nf}_e$ and $\mathsf{nf}_{e+1}$, where $e$ is the epoch
+of its referenced pool state. The proof establishes that the note's applicable
+nullifiers were absent between its creation and that state; validators perform
+the recent duplicate checks described under [Epochs](#epochs). This combines
+proofs of historical unspentness with a prunable consensus nullifier
+set.[^tachyon-proof-tree]
+
+Nullifier derivation and its proof constraints MUST be implemented as specified
+in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 
 
 ## Anchors
@@ -283,7 +318,9 @@ Design and implementation: [^tachyon-keys] [^tachyon-key-derivation].
 
 [^protocol-valuecommit]: [Zcash Protocol Specification: Homomorphic Pedersen commitments (Sapling and Orchard)](protocol/protocol.pdf#concretehomomorphiccommit)
 
-[^protocol-tachyon-notecommit]: Zcash Protocol Specification, Tachyon note commitment construction. TODO: Add the version and section references once specified.
+[^protocol-tachyon-notecommit]: Zcash Protocol Specification, Tachyon note structure and commitment construction. TODO: Add the version and section references once specified.
+
+[^protocol-tachyon-nullifiers]: Zcash Protocol Specification, Tachyon nullifier derivation and proof constraints. TODO: Add the version and section references once specified.
 
 [^protocol-tachyon-multisetcommit]: Zcash Protocol Specification, Tachyon multiset commitment construction. TODO: Add the version and section references once specified.
 
@@ -299,7 +336,11 @@ Design and implementation: [^tachyon-keys] [^tachyon-key-derivation].
 
 [^tachyon-nullifiers]: [The Tachyon Book: Nullifiers](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/nullifiers.md)
 
+[^evolving-nullifiers]: Sean Bowe and Ian Miers. [A Note on Notes: Towards Scalable Anonymous Payments via Evolving Nullifiers and Oblivious Synchronization](https://eprint.iacr.org/2025/2031). Cryptology ePrint Archive, Paper 2025/2031, 2025.
+
 [^tachyon-notes]: [The Tachyon Book: Notes](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/notes.md)
+
+[^tachyon-note-implementation]: [Tachyon reference implementation: Notes and note commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/note.rs)
 
 [^tachyon-authorization]: [The Tachyon Book: Authorization — Value Balance](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/authorization.md#value-balance)
 
