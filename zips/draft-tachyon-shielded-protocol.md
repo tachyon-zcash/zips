@@ -132,9 +132,7 @@ headers bind an anchor and commitments to the action-digest and tachygram
 multisets. Tachygrams comprise nullifiers, note commitments, and padding values.
 
 Stamps at a common anchor can be merged recursively, first to cover a transaction's
-actions and then to aggregate independently constructed transactions. Anchor-chain
-proofs allow stamps to be advanced to a common later anchor before merging.
-Validators check the resulting proof against commitments reconstructed from the
+actions and then to aggregate independently constructed transactions. Before merging, anyone with the published transaction and chain data (likely a miner or other aggregator) can use anchor-chain proofs to lift stamps to a later anchor within the same spending epoch, enabling them to be merged during aggregation. Validators check the resulting proof against commitments reconstructed from the
 covered actions and published tachygrams, and check the anchor against chain state.
 
 - PCD step statements and composition rules: [^protocol-tachyon-proof-tree]
