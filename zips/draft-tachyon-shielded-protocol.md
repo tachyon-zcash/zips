@@ -74,6 +74,24 @@ system utilizes the full curve cycle for recursive proof composition.[^ragu]
 
 Tachyon uses the Ragu proving system,[^ragu] with R1CS-like arithmetization inspired by Bootle16[^bootle16], efficient recursion via split accumulation, and its online polynomial oracle and transcript bridging features.[^bclms21]
 
+## Tachygrams
+
+Tachyon unifies the on-chain representation and consensus treatment of note
+commitments and nullifiers, referring to both as _tachygrams_.
+
+A tachygram is a Pallas base-field element representing a note commitment, a
+nullifier, or a padding value. A spend contributes nullifiers for its epoch and
+the next; an output contributes a note commitment and a padding tachygram to the stamp's tachygram multiset. Both
+action types contribute exactly two values, so the tachygram count alone does not
+reveal the split between spends and outputs.
+
+Tachygrams are published as an untyped multiset. The zero-knowledge proof enforces
+their correct derivation and association with the covered actions.
+Consensus therefore need not distinguish note commitments from nullifiers or
+padding: it verifies the proof and applies the same duplicate-rejection
+rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
+
+
 ## Stamp
 
 A stamp packages a recursive zero-knowledge proof, a pool-state anchor, and the
@@ -144,21 +162,6 @@ These commitments preserve multiplicity but not order, and have no blinding term
 - Note commitment construction: [^protocol-tachyon-notecommit]
 - Multiset commitment construction: [^protocol-tachyon-multisetcommit]
 - Design and implementation: [^tachyon-notes] [^tachyon-authorization] [^tachyon-multisetcommit]
-
-
-## Tachygrams
-
-A tachygram is a Pallas base-field element representing a note commitment, a
-nullifier, or a padding value. A spend contributes nullifiers for its epoch and
-the next; an output contributes a note commitment and a padding tachygram to the stamp's tachygram multiset. Both
-action types contribute exactly two values, so the tachygram count alone does not
-reveal the split between spends and outputs.
-
-Tachygrams are published as an untyped multiset. The zero-knowledge proof enforces
-their correct derivation and association with the covered actions.
-Consensus therefore need not distinguish note commitments from nullifiers or
-padding: it verifies the proof and applies the same duplicate-rejection
-rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
 
 
 ## Tachygram accumulator
