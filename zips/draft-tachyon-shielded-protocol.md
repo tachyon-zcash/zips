@@ -72,7 +72,7 @@ system utilizes the full curve cycle for recursive proof composition.[^ragu]
 
 ## Proving system
 
-Tachyon uses the Ragu proving system,[^ragu] with R1CS-like arithmetization inspired by Bootle16[^bootle16] and efficient recursion via split accumulation.[^bclms21]
+Tachyon uses the Ragu proving system,[^ragu] with R1CS-like arithmetization inspired by Bootle16[^bootle16], efficient recursion via split accumulation, and its online polynomial oracle and transcript bridging features.[^bclms21]
 
 ## Stamp
 
