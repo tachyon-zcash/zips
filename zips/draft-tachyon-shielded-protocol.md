@@ -253,15 +253,33 @@ in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 ## Consensus rules
 
 Tachyon consensus validation MUST be implemented as specified in the Zcash
-Protocol Specification.[^protocol-tachyon-consensus] The principal checks are:
+Protocol Specification.[^protocol-tachyon-consensus] The principal checks are
+grouped by what they validate: each transaction's bundle, or a stamp covering
+one or more bundles. Aggregation combines stamp proofs, but does not eliminate
+the checks on individual bundles.
+
+### Per-bundle checks
+
+These checks apply to every bundle, whether it carries a stamp or refers to a
+stamp in another transaction:
 
 - Bundle fields have canonical encodings and satisfy their type and range
   constraints. Each action's value commitment and authorization key are
   non-identity Pallas points. A bundle with no actions has zero value balance.
-- Every action signature and each bundle's binding signature verify over the
+- Every action signature and the bundle's binding signature verify over the
   containing transaction's signature hash. The binding signature enforces
   consistency between the action value commitments and the declared value
-  balance. These checks remain per-transaction after aggregation.
+  balance.
+- Opaque payment-protocol payloads satisfy bundle-format encoding rules, and
+  their bytes are committed by the transaction's signature hash.[^tachyon-bundle-payload]
+
+### Per-stamp checks
+
+These checks apply to each proof-bearing stamp, using all bundles it covers.
+They are not independent of block and chain context: coverage is resolved
+within the block, and anchors and duplicate tachygrams are checked against the
+relevant chain state.
+
 - Each stamp's declared coverage matches the actions in its own bundle and all
   bundles referring to it. Those references resolve to a proof-bearing bundle in
   the same block, the covered action descriptors are distinct, and the stamp
@@ -270,15 +288,13 @@ Protocol Specification.[^protocol-tachyon-consensus] The principal checks are:
   reconstructed from the covered action digests and published tachygrams.
 - Each stamp anchor identifies an accepted end-of-block pool state in the
   epoch of the block being validated or the immediately preceding epoch.
-- All tachygrams in a block are distinct, and none repeats a tachygram published
-  in an earlier block of the current or immediately preceding epoch. This check
-  treats note commitments, nullifiers, and padding identically.
-- The pool-state accumulator advances through the block's proof stamps in
-  transaction order, incorporating epoch transitions as specified under
+- A stamp's tachygrams are distinct from one another, from those of every other
+  stamp in the block, and from tachygrams published in earlier blocks of the
+  current or immediately preceding epoch. This check treats note commitments,
+  nullifiers, and padding identically.
+- Each stamp advances the pool-state accumulator in transaction order, with
+  epoch transitions incorporated as specified under
   [Tachygram accumulator](#tachygramaccumulator).
-
-Opaque payment-protocol payloads remain subject to bundle-format encoding rules,
-and their bytes are committed by the transaction's signature hash.[^tachyon-bundle-payload]
 
 Wire-format details and cross-transaction coverage are specified by the
 [bundle-format](draft-tachyon-bundle-format.md) and
