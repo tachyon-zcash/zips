@@ -17,7 +17,9 @@ BCP 14 [^BCP14] when, and only when, it appears in all capitals.
 
 # Abstract
 
-This document proposes the Tachyon shielded protocol, which defines a new shielded pool with various scalability advantages. Tachyon enables validators to prune nullifier state, and supports aggregation of ZK proofs. Tachyon intentionally omits the in-band secret dispersion mechanisms used in all of Zcash's previous shielded pools, so more-scalable payment protocols may be built on-top.
+This document proposes the Tachyon shielded protocol, which defines a new shielded pool with various scalability advantages. Tachyon enables validators to prune nullifier state, and supports aggregation of ZK proofs.
+Tachyon decouples note-encryption and transmission semantics from the shielded
+protocol, allowing more-scalable payment protocols to be built on top.
 
 # Motivation
 
@@ -44,19 +46,13 @@ Tachyon remediates both bottlenecks by leveraging recursive proofs:
 - By requiring users to privately obtain and supply a recursive zero-knowledge proof of their notes spendability along with their transaction, nullifier state may be organized into [_epochs_](#epochs) and periodically pruned by validators.
 - By allowing proofs from multiple transactions to be aggregated into a single proof, storage and verification costs can be amortized for proof data.
 
-Tachyon also separates shielded transfers from payment-data delivery. Orchard
-distributes note secrets in-band: transactions carry encrypted note plaintexts
-that recipients discover by scanning the chain and attempting decryption.
-Tachyon removes this built-in secret-distribution system from the shielded
-protocol, leaving secure delivery of note openings to payment protocols
-constructed on top.[^tachyon-secret-distribution]
 
-This separation removes the requirement for a protocol-defined ciphertext for
-every output and the associated transmission-key and viewing-key machinery. It permits payment delivery and discovery to evolve
+Tachyon decouples note transmission from the shielded protocol. The blockchain can still carry arbitrary payloads, but the Tachyon shielded protocol treats them as opaque rather than prescribing their encryption or note-transmission semantics. Higher-level payment protocols define how recipients discover and decrypt this data, and may use private information retrieval (PIR) to retrieve it privately.[^tachyon-secret-distribution] [^tachyon-payment-protocols]
+
+Encryption, transport, and discovery are not prescribed by this
+ZIP. This separation permits note transmission and discovery to evolve
 independently of consensus, including approaches that avoid scanning every
-transaction. It does not prohibit payment protocols from using opaque on-chain
-payloads; encryption, transport, and discovery are not prescribed by this
-ZIP.[^tachyon-payment-protocols]
+transaction. [^tachyon-payment-protocols]
 
 # Specification
 
@@ -157,7 +153,7 @@ These commitments preserve multiplicity but not order, and have no blinding term
 
 A tachygram is a Pallas base-field element representing a note commitment, a
 nullifier, or a padding value. A spend contributes nullifiers for its epoch and
-the next; an output contributes a note commitment and a padding tachygram. Both
+the next; an output contributes a note commitment and a padding tachygram to the stamp's tachygram multiset. Both
 action types contribute exactly two values, so the tachygram count alone does not
 reveal the split between spends and outputs.
 
@@ -195,10 +191,10 @@ The principal changes are:
   derived from $\mathsf{ak}$ and $\mathsf{nk}$ using domain-separated Poseidon,
   in place of Orchard's diversifier and diversified transmission key.
 - Orchard's viewing-key and diversified-address machinery is omitted from the
-  core protocol along with its built-in in-band secret-distribution system.
-  Address management, transmission keys, and note delivery are instead defined
-  by higher-level payment protocols, which may use out-of-band communication,
-  opaque on-chain payloads, or both.[^tachyon-payment-protocols]
+  core protocol. Address management, viewing capabilities, transmission keys,
+  note encryption, and retrieval are instead defined by higher-level payment
+  protocols. Encrypted notes can still be published as opaque on-chain
+  payloads.[^tachyon-payment-protocols]
 
 Key components and derivation: [^protocol-tachyon-keys].
 Design and implementation: [^tachyon-keys] [^tachyon-key-derivation].
@@ -209,7 +205,7 @@ Design and implementation: [^tachyon-keys] [^tachyon-key-derivation].
 A Tachyon note has the form $(\mathsf{pk}, v, \psi, \mathsf{rcm})$, where
 $\mathsf{pk}$ is the recipient's payment key, $v$ is a non-negative value in
 zatoshis, $\psi$ is the nullifier trapdoor, and $\mathsf{rcm}$ is note-commitment
-randomness. The payment key, nullifier trapdoor, and commitment randomness are Pallas base-field elements. The value is a non-negative integer amount in zatoshis, encoded as a field element when computing the commitment. Unlike
+randomness. The payment key, nullifier trapdoor, and commitment randomness are Pallas base-field elements. The value is a non-negative integer amount in zatoshis, also encoded as a field element when computing the commitment. Unlike
 Orchard, the note has no $\rho$ field linking it to the nullifier of a spend in
 the same action.
 
@@ -218,10 +214,7 @@ in place of Orchard's Sinsemilla construction:
 
 $$\mathsf{cm} = \mathsf{Poseidon}_{\texttt{Tachyon-CmDerive}}(\mathsf{rcm}, \mathsf{pk}, v, \psi).$$
 
-An output publishes $\mathsf{cm}$ together with a padding tachygram derived from
-the same note fields under a separate domain. The note opening is not published
-as part of the shielded protocol.[^tachyon-note-implementation] [^tachyon-tachygrams]
-
+An output action publishes $\mathsf{cm}$ together with a padding tachygram. [^tachyon-note-implementation] [^tachyon-tachygrams]
 The note structure and commitment MUST be implemented as specified in the Zcash
 Protocol Specification.[^protocol-tachyon-notecommit]
 
@@ -278,8 +271,9 @@ Protocol Specification.[^protocol-tachyon-consensus] The principal checks are:
   transaction order, incorporating epoch transitions as specified under
   [Tachygram accumulator](#tachygramaccumulator).
 
-These checks are reflected in the bundle validation implementation and Zakura's
-Tachyon integration.[^tachyon-bundle-validation] [^zakura-tachyon-consensus]
+Opaque payment-protocol payloads remain subject to bundle-format encoding rules,
+and their bytes are committed by the transaction's signature hash.[^tachyon-bundle-payload]
+
 Wire-format details and cross-transaction coverage are specified by the
 [bundle-format](draft-tachyon-bundle-format.md) and
 [aggregation](draft-tachyon-aggregation-protocol.md) ZIPs.
@@ -287,21 +281,30 @@ Wire-format details and cross-transaction coverage are specified by the
 
 # Privacy and Security Implications
 
-Removing in-band secret distribution does not remove the need to protect note
-secrets. Confidential delivery, recipient authentication, and payment discovery
-are responsibilities of the chosen payment protocol. A valid shielded proof does
-not establish that the intended recipient has received or can recover the note
-opening. Privacy against network observers and leakage through payment metadata
-also depend on that higher-level protocol.[^tachyon-payment-protocols]
+Confidential note transmission, recipient authentication, and note discovery are
+responsibilities of the chosen payment protocol. On-chain payloads are publicly
+visible, so the confidentiality of encrypted note data depends on that protocol's
+encryption scheme. Retrieval privacy is distinct: PIR can hide which records a
+recipient requests from a retrieval service, but does not conceal the published
+ciphertexts or, by itself, all network metadata.
+
+A valid shielded proof does not establish that the intended recipient has
+received or can recover the note opening. Privacy against network observers and
+leakage through payment metadata also depend on the higher-level payment
+protocol.[^tachyon-payment-protocols]
 
 # Non-requirements
 
 The Tachyon shielded protocol is unopinionated about the payment protocols
 constructed on top of it. This ZIP does not prescribe payment-address formats,
-note encryption, secret distribution, incoming-payment discovery, or selective
-disclosure. Payment protocols may use out-of-band communication, opaque on-chain
-payloads, or a combination of both, provided the resulting shielded transactions
-satisfy Tachyon's consensus rules.[^tachyon-payment-protocols]
+note encryption, incoming-note discovery, selective disclosure, or a retrieval
+mechanism.
+
+On-chain publication and off-chain retrieval are separate concerns. A payment
+protocol may publish encrypted notes on the ledger and retrieve them through
+off-chain services, or use out-of-band note transmission instead. This ZIP
+requires neither PIR nor a particular payment protocol; the resulting shielded
+transactions still satisfy Tachyon's consensus rules.[^tachyon-payment-protocols]
 
 # Deployment
 
@@ -368,9 +371,7 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 
 [^tachyon-proof-tree]: [The Tachyon Book: Proof tree](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/proof-tree.md)
 
-[^tachyon-bundle-validation]: [Tachyon reference implementation: Bundle validation](https://github.com/tachyon-zcash/tachyon/blob/2dc7010c3e7771c539fd1c03a06bc6be1a7316c7/crates/tachyon/src/bundle/mod.rs)
-
-[^zakura-tachyon-consensus]: [Zakura PR #795: Add NuTachyon and V7 transactions](https://github.com/zakura-core/zakura/pull/795), implementation reviewed at commit `4802324172e38ede0f16fe593ad3bf5f0dc8edf4`.
+[^tachyon-bundle-payload]: [The Tachyon Book: Bundle body and opaque payload](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/bundle.md)
 
 [^zip-0224]: [ZIP 224: Orchard Shielded Protocol](zip-0224.rst)
 
