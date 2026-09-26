@@ -163,10 +163,15 @@ These commitments preserve multiplicity but not order, and have no blinding term
 
 ## Tachygram accumulator
 
-Tachyon replaces Orchard's note commitment tree with an accumulator over
-tachygrams: note commitments, nullifiers, and padding values. Each stamp's
-tachygram-multiset commitment is absorbed into a Poseidon hash chain, which also
-records epoch transitions, to derive pool-state anchors.
+Tachyon unifies the history represented by Orchard's note commitment tree and
+nullifier set in a single accumulator over [tachygrams](#tachygrams): note
+commitments, nullifiers, and padding values.
+
+The construction is a Poseidon hash chain of smaller multiset accumulators, one
+per stamp. Each stamp's tachygram-multiset commitment is absorbed into the chain,
+which also records epoch transitions, to derive pool-state anchors. Validators
+still retain recent tachygrams for the duplicate checks described under
+[Epochs](#epochs).
 
 The tachygram accumulator MUST be implemented as specified in the Zcash Protocol
 Specification.[^protocol-tachyon-accumulator]
