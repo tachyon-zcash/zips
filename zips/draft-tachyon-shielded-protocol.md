@@ -184,6 +184,12 @@ The principal changes are:
 - The proof-authorizing key is explicitly represented as
   $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$, allowing proof construction without
   the spend-authorizing key.
+- The per-action randomizer $\alpha$ MUST be derived from the note commitment
+  $\mathsf{cm}$ and per-action entropy using a domain-separated derivation. For a
+  spend, the randomized spend-validating key
+  $\mathsf{rk} = \mathsf{ak} + [\alpha]\mathcal{G}$ therefore binds the action's
+  signed effecting data to the underlying note, even though its tachygrams are
+  carried separately in the stamp.[^tachyon-action-authorization]
 - The recipient is represented by a field-element payment key $\mathsf{pk}$,
   derived from $\mathsf{ak}$ and $\mathsf{nk}$ using domain-separated Poseidon,
   in place of Orchard's diversifier and diversified transmission key.
@@ -361,6 +367,8 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 [^tachyon-note-implementation]: [Tachyon reference implementation: Notes and note commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/note.rs)
 
 [^tachyon-authorization]: [The Tachyon Book: Authorization — Value Balance](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/authorization.md#value-balance)
+
+[^tachyon-action-authorization]: [The Tachyon Book: Authorization — Per-action Signing](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/authorization.md#per-action-signing)
 
 [^tachyon-multisetcommit]: [Tachyon reference implementation: Multiset commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/primitives/sets.rs)
 
