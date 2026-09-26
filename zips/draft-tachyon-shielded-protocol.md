@@ -90,10 +90,7 @@ remain in their respective transactions.[^tachyon-proof-tree]
 
 ## Epochs
 
-An epoch is a fixed-length interval of consecutive blocks, identified by an index
-derived from block height. Each note has an epoch-specific nullifier. A spend
-publishes nullifiers for the epoch of its referenced pool state and the following
-epoch, allowing inclusion across an epoch boundary.[^tachyon-nullifiers]
+An epoch is a fixed-length interval of consecutive blocks, identified by an index derived from block height. Each note has a deterministic nullifier for each epoch, independent of the choice of anchor. A spend referencing a pool state in epoch $e$ publishes the note’s nullifiers for epochs $e$ and $e+1$, allowing inclusion across an epoch boundary.[^tachyon-nullifiers]
 
 When validating a transaction, validators check for duplicate nullifiers in the
 current and immediately preceding epochs. Recursive spendability proofs cover
