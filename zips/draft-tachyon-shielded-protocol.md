@@ -123,8 +123,7 @@ in the Zcash Protocol Specification.[^protocol-tachyon-epochs]
 ## Proof tree
 
 Instead of Orchard's single action circuit, Tachyon uses a recursive proof tree of
-specialized proof-carrying data (PCD) steps. Each step checks its own constraints
-and combines up to two input PCDs into a new PCD.
+specialized proof-carrying data (PCD) steps. Each step enforces its own constraints and recursively verifies up to two input PCD proofs, producing a new folded PCD proof.
 
 Spend proofs combine evidence of note creation, correct per-epoch nullifier
 derivation, and continued unspentness up to an anchor. Separate output steps prove
@@ -235,9 +234,7 @@ epochs' nullifiers. Its outputs are Pallas base-field elements.[^tachyon-nullifi
 
 A spend publishes $\mathsf{nf}_e$ and $\mathsf{nf}_{e+1}$, where $e$ is the epoch
 of its referenced pool state. The proof establishes that the note's applicable
-nullifiers were absent between its creation and that state; validators perform
-the recent duplicate checks described under [Epochs](#epochs). This combines
-proofs of historical unspentness with a prunable consensus nullifier
+nullifiers were absent between its creation and that state; validators check for their non-existence in the retained tachygrams. This combines proofs of historical unspentness with a prunable consensus nullifier
 set.[^tachyon-proof-tree]
 
 Nullifier derivation and its proof constraints MUST be implemented as specified
