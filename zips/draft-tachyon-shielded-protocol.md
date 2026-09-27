@@ -150,15 +150,34 @@ Pallas base field in place of Orchard's Sinsemilla construction. It commits to t
 recipient's payment key, value, and nullifier trapdoor using note-commitment
 randomness, producing a field element.
 
-Tachyon additionally uses deterministic Pedersen polynomial commitments on Vesta
-for action-digest and tachygram multisets. Each multiset is encoded as the roots of
-a monic polynomial, whose coefficients are committed using Ragu's fixed generators.
-These commitments preserve multiplicity but not order, and have no blinding term.
-
 - Value commitment scheme: [^protocol-valuecommit]
 - Note commitment construction: [^protocol-tachyon-notecommit]
-- Multiset commitment construction: [^protocol-tachyon-multisetcommit]
-- Design and implementation: [^tachyon-notes] [^tachyon-authorization] [^tachyon-multisetcommit]
+- Design and implementation: [^tachyon-notes] [^tachyon-authorization]
+
+### Multiset commitments
+
+Tachyon uses deterministic Pedersen polynomial commitments on Vesta for
+action-digest and tachygram multisets. A multiset of Pallas base-field elements is
+encoded by taking its members as the roots of a monic polynomial. For action
+digests $d_i$ and tachygrams $t_j$:
+
+$$A(X) = \prod_i \bigl(X - d_i\bigr) \qquad
+T(X) = \prod_j \bigl(X - t_j\bigr)$$
+
+The commitment to a polynomial of degree $n$ is the deterministic, untrapdoored
+Pedersen commitment to its $n+1$ coefficients over the Vesta group, using the
+polynomial-commitment generators fixed by Ragu, with no blinding term. The
+coefficients are ordered by ascending degree: the constant term pairs with $G_0$,
+and the degree-$k$ coefficient pairs with $G_k$.
+
+A polynomial is invariant under permutation of its roots, and a repeated member
+becomes a repeated root. These commitments therefore preserve multiplicity but
+not order. They are deterministic functions of the public multisets and reveal
+no information beyond those multisets.
+
+The multiset commitment construction MUST be implemented as specified in the
+Zcash Protocol Specification.[^protocol-tachyon-multisetcommit]
+Design and implementation: [^tachyon-multisetcommit].
 
 
 ## Tachygram accumulator
