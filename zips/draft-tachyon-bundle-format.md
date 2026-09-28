@@ -501,7 +501,14 @@ Activation parameters are specified by the corresponding deployment ZIP ([Networ
 
 # Reference implementation
 
-A reference implementation of the bundle wire codec, the digest and commitment constructions, the value balance, the digest contributions, and signature verification is developed in the `zcash_tachyon` crate of the Tachyon repository: <https://github.com/tachyon-zcash/tachyon>.
+The `zcash_tachyon` crate in the
+[Tachyon repository](https://github.com/tachyon-zcash/tachyon) provides the bundle
+codec, commitment and digest calculations, and signature verification.
+Experimental transaction-format, value-accounting, and transaction-digest
+integration is provided by
+[zakura-core/common PR #178](https://github.com/zakura-core/common/pull/178).
+Experimental full-node integration, including bundle and block validation, is
+provided by [Zakura PR #795](https://github.com/zakura-core/zakura/pull/795).
 
 # References
 
