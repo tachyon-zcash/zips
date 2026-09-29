@@ -145,14 +145,11 @@ Tachyon retains Orchard's homomorphic Pedersen value commitments on Pallas,
 including the value and randomness generators. A Tachyon action commits to a
 signed value, positive for spends and negative for outputs.
 
-For note commitments, Tachyon uses a domain-separated Poseidon sponge over the
-Pallas base field in place of Orchard's Sinsemilla construction. It commits to the
-recipient's payment key, value, and nullifier trapdoor using note-commitment
-randomness, producing a field element.
+For the note structure and Poseidon note commitment, see
+[Notes and note commitments](#notesandnotecommitments).
 
 - Value commitment scheme: [^protocol-valuecommit]
-- Note commitment construction: [^protocol-tachyon-notecommit]
-- Design and implementation: [^tachyon-notes] [^tachyon-authorization]
+- Design and implementation: [^tachyon-authorization]
 
 ### Multiset commitments
 
@@ -234,7 +231,7 @@ $\mathsf{pk}$ is the recipient's payment key, $v$ is a non-negative value in
 zatoshis, $\psi$ is the nullifier trapdoor, and $\mathsf{rcm}$ is note-commitment
 randomness. The payment key, nullifier trapdoor, and commitment randomness are Pallas base-field elements. The value is a non-negative integer amount in zatoshis, also encoded as a field element when computing the commitment. Unlike
 Orchard, the note has no $\rho$ field linking it to the nullifier of a spend in
-the same action.
+the same action.[^tachyon-notes]
 
 The note commitment is a field element computed using domain-separated Poseidon
 in place of Orchard's Sinsemilla construction:
@@ -272,15 +269,16 @@ in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 ## Consensus rules
 
 Tachyon consensus validation MUST be implemented as specified in the Zcash
-Protocol Specification.[^protocol-tachyon-consensus] The principal checks are
-grouped by what they validate: each transaction's bundle, or a stamp covering
+Protocol Specification.[^protocol-tachyon-consensus] The following summary groups
+the principal checks by what they validate: each transaction's bundle, or a stamp covering
 one or more bundles. Aggregation combines stamp proofs, but does not eliminate
 the checks on individual bundles.
 
 ### Per-bundle checks
 
-These checks apply to every bundle, whether it carries a stamp or refers to a
-stamp in another transaction:
+The bundle-format ZIP's [Bundle validity](draft-tachyon-bundle-format.md#bundlevalidity)
+rules apply to every bundle, whether it carries a stamp or refers to a stamp in
+another transaction. In summary:
 
 - Bundle fields have canonical encodings and satisfy their type and range
   constraints. Each action's value commitment and authorization key are
@@ -289,15 +287,18 @@ stamp in another transaction:
   containing transaction's signature hash. The binding signature enforces
   consistency between the action value commitments and the declared value
   balance.
-- Opaque payment-protocol payloads satisfy bundle-format encoding rules, and
-  their bytes are committed by the transaction's signature hash.[^tachyon-bundle-payload]
+- Opaque payment-protocol payloads satisfy the
+  [canonical encoding rules](draft-tachyon-bundle-format.md#canonicalencodings), and
+  their bytes are committed by the transaction's signature hash as described under
+  [Transaction digest contributions](draft-tachyon-bundle-format.md#transactiondigestcontributions).
 
 ### Per-stamp checks
 
 These checks apply to each proof-bearing stamp, using all bundles it covers.
-They are not independent of block and chain context: coverage is resolved
-within the block, and anchors and duplicate tachygrams are checked against the
-relevant chain state.
+The bundle-format ZIP's [Block validity](draft-tachyon-bundle-format.md#blockvalidity)
+section specifies block-scoped coverage and proof-verification procedures.
+The anchor, epoch-window, and accumulator rules below additionally depend on chain
+state.
 
 - Each stamp's declared coverage matches the actions in its own bundle and all
   bundles referring to it. Those references resolve to a proof-bearing bundle in
@@ -315,9 +316,8 @@ relevant chain state.
   epoch transitions incorporated as specified under
   [Tachygram accumulator](#tachygramaccumulator).
 
-Wire-format details and cross-transaction coverage are specified by the
-[bundle-format](draft-tachyon-bundle-format.md) and
-[aggregation](draft-tachyon-aggregation-protocol.md) ZIPs.
+The [aggregation lifecycle and relay policy](draft-tachyon-aggregation-protocol.md#specification)
+apply these rules without eliminating the checks on individual bundles.
 
 
 # Privacy and Security Implications
@@ -413,8 +413,6 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 [^tachyon-multisetcommit]: [Tachyon reference implementation: Multiset commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/primitives/sets.rs)
 
 [^tachyon-proof-tree]: [The Tachyon Book: Proof tree](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/proof-tree.md)
-
-[^tachyon-bundle-payload]: [The Tachyon Book: Bundle body and opaque payload](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/bundle.md)
 
 [^zip-0224]: [ZIP 224: Orchard Shielded Protocol](zip-0224.rst)
 

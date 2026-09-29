@@ -47,8 +47,14 @@ License: MIT
 
 ### Tachyon shielded protocol
 
+See the [Tachyon Shielded Protocol](draft-tachyon-shielded-protocol.md#specification)
+ZIP for cryptographic constructions, proof statements, epochs, and pool-state rules.
+
 
 ### Tachyon bundle format
+
+See the [Tachyon Bundle / Aggregate Transaction Format](draft-tachyon-bundle-format.md#specification)
+ZIP for bundle encodings and transaction-digest inputs.
 
 
 ### Transaction format
@@ -59,8 +65,17 @@ License: MIT
 
 ### Consensus rules
 
+See the shielded-protocol ZIP's
+[Consensus rules](draft-tachyon-shielded-protocol.md#consensusrules) and the
+bundle-format ZIP's [Bundle validity](draft-tachyon-bundle-format.md#bundlevalidity)
+and [Block validity](draft-tachyon-bundle-format.md#blockvalidity) sections.
+
 
 ### Network behavior
+
+See the [Tachyon Aggregator Protocol](draft-tachyon-aggregation-protocol.md#specification)
+ZIP for the aggregation lifecycle, including
+[Transaction identifiers and P2P relay](draft-tachyon-aggregation-protocol.md#transactionidentifiersandp2prelay).
 
 
 ## Backward compatibility
