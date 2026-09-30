@@ -76,8 +76,14 @@ Aggregation amortizes proof data and verification across covered transactions.
 The proof system permits public aggregation of already-published proofs, so the aggregator is a permissionless, conceptual role that any participant may take, not a designated prover.
 Aggregation reduces the number of stamp proofs a validator verifies, but the public-data, signature, and balance checks still apply.
 
-Aggregation is optional.
+Participation in peer-to-peer aggregation is optional: nodes can relay only
+*autonome* Tachyon transactions, and miners can perform aggregation locally without
+receiving *aggregates* from other peers. This does not change the consensus
+requirements for validating blocks containing *aggregates* and *adjuncts*.
 Miners remain free to include non-aggregated Tachyon transactions; any *aggregate* a block does contain must be fully backed by *adjuncts* in the same block.
+
+Nodes that choose to advertise *aggregates* are subject to the
+[dependency-serving requirements](#aggregatedependencyavailability) specified below.
 
 # Requirements
 
@@ -122,10 +128,15 @@ an epoch boundary, and stamps bearing anchors of different epochs cannot be
 aligned for merging.
 
 A selected transaction that is already an *aggregate* additionally requires the actions of every transaction contributing to it.
-The contributors cannot be requested from the network by `wtxid`, because the *aggregate* does not carry their identities.
-Recovering them from transactions the aggregator holds is [covered-transaction identification](#covered-transactionidentification): a correct and complete collection of actions reproduces the covered-actions digest on the selected stamp.
+The *aggregate* does not carry its contributors' transaction identifiers.
+An aggregator uses [covered-transaction identification](#covered-transactionidentification)
+over locally held transactions and requests missing dependency data from the
+advertising peer as described in
+[Aggregate dependency availability](#aggregatedependencyavailability).
 
-Aggregators therefore maintain an index of recent mempool transactions, along with recent consensus data and cached anchor lift proofs, and do not attempt merges whose contributors they cannot recover from data they hold.
+Aggregators maintain an index of recent transactions, along with recent consensus
+data and cached anchor lift proofs, and do not attempt a merge until the required
+covered transaction data is available and validated.
 
 ## Step 4: Aggregate construction
 
@@ -139,6 +150,8 @@ The aggregator publishes the *aggregate* transaction to the mempool.
 A newly constructed transaction has a new `txid` and `wtxid`.
 Replacing a transaction's stamp preserves its `txid` and changes its `wtxid`.
 Relay follows [Transaction identifiers and P2P relay](#transactionidentifiersandp2prelay).
+Advertising the *aggregate* also incurs the
+[dependency-serving obligation](#aggregatedependencyavailability).
 
 ## Step 6: Miner observation and selection
 
@@ -201,6 +214,43 @@ under [Placement and bundle states](draft-tachyon-bundle-format.md#placementandb
 Tachyon bundles are announced and fetched by `wtxid` using the `MSG_WTX` inv type, and nodes MUST treat distinct `wtxid`s as distinct inventory objects.
 `MSG_WTX` relay is mandatory: restamping changes a transaction's `wtxid` while leaving `txid` unchanged, so announcement by `txid` alone could not distinguish the proof-stamped forms a node may be offered.
 
+### Aggregate dependency availability
+
+A node advertising an *aggregate* MUST have verified it and MUST retain and serve
+the covered transaction data required to validate it for the dependency-serving
+period. This obligation applies to every relaying node, not only the aggregator
+that constructed it.
+
+Dependency recovery is scoped to the advertised *aggregate*'s exact `wtxid`.
+The advertising peer supplies a description of the covered transactions, allowing
+the receiver to reuse locally held data and request only missing dependencies.
+Dependency descriptions and responses are untrusted: the receiver MUST confirm
+complete action coverage against `hStampActionsTachyon`, verify the stamp proof,
+and perform signature, balance, and other applicable checks on the covered
+transactions before admitting or relaying the *aggregate*.
+
+Pending aggregates MUST remain outside the validated mempool and ordinary
+transaction relay until verification completes. Dependency requests, responses,
+and pending work MUST be bounded per peer and globally by count, bytes, time,
+rate, and concurrency. A peer MAY refuse requests exceeding the serving limits;
+such refusals MUST NOT be penalized as failures to honor the serving obligation.
+
+Failure to obtain dependencies does not establish that an *aggregate* is invalid.
+Repeated failures to serve valid, in-limit requests during the serving period MAY
+reduce the advertising peer's availability score or service priority, or lead to
+disconnection. Availability failures MUST be distinguished from invalid-proof or
+invalid-transaction failures; an isolated timeout MUST NOT incur such a validation
+penalty. Nodes MUST track the suppliers of aggregates and dependency responses
+separately, so invalid data from another responder is not attributed to the
+aggregate's sender. Scoring weights remain implementation policy.
+
+TODO: Specify the dependency description and request/response encodings, serving
+period and renewal rules, request limits, timeouts and retries, and the effects
+of transaction expiry, reorgs, and advertisement withdrawal on serving obligations.
+This subsection is not yet a complete wire protocol. Any stamp-stripped dependency
+encoding needs separate reconstruction semantics; it must not be treated as
+ordinary adjunct relay or as the original transaction's `MSG_WTX` object.
+
 ### Duplicate tachygrams are transaction-invalid
 
 Tachygram distinctness applies at the transaction level: a proof stamp whose `vTachygrams` contains a duplicate tachygram is invalid, and a node MUST NOT accept it into the mempool or relay it.
@@ -216,7 +266,11 @@ bundle-format ZIP's [Block validity](draft-tachyon-bundle-format.md#blockvalidit
 section, using the covered actions identified for relay rather than collecting
 them through in-block pointer stamps.
 An *autonome* is self-contained, since its stamp covers only its own actions.
-For an *aggregate* covering other transactions, the node collects the covered actions from the mempool transactions it holds and checks that set against the carried `hStampActionsTachyon` (see [Covered-transaction identification](#covered-transactionidentification)) before assembling the header.
+For an *aggregate* covering other transactions, the node collects the covered
+actions from locally held transactions and dependency responses, and
+checks that set against the carried `hStampActionsTachyon` (see
+[Covered-transaction identification](#covered-transactionidentification)) before
+assembling the header.
 Without the covered actions, the *aggregate* cannot be verified.
 
 ### Adjunct bundles are forbidden from the mempool
@@ -310,6 +364,10 @@ This section is explanatory and introduces no additional protocol requirements.
 
 An observer holding candidate transactions can use `vTachygrams` overlap and `hStampActionsTachyon` to infer an aggregate's coverage (see [Covered-transaction identification](#covered-transactionidentification)).
 The aggregate alone does not carry all the covered action data needed to reconstruct its proof header.
+Selective dependency requests can reveal which covered transactions a receiver lacks,
+and responses disclose the serving peer's proposed transaction coverage. They do
+not establish when or whether those transactions were previously broadcast.
+
 Note confidentiality and transmission are discussed in the shielded-protocol ZIP's
 [Privacy and Security Implications](draft-tachyon-shielded-protocol.md#privacyandsecurityimplications);
 they are not established by the coverage check.
