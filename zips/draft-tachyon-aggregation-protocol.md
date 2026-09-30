@@ -16,7 +16,8 @@ The key words "MUST", "MUST NOT", "SHOULD", "SHOULD NOT", "MAY", and "RECOMMENDE
 The term "network upgrade" is to be interpreted as described in ZIP 200.[^zip-0200]
 The terms "Testnet" and "Mainnet" are to be interpreted as described in § 3.12 ‘Mainnet and Testnet’.[^protocol]
 
-The terms "tachygram" and "stamp" are defined by the shielded-protocol ZIP and
+The terms "tachygram" and "stamp" are defined by the
+[shielded-protocol ZIP](draft-tachyon-shielded-protocol.md) and
 summarized here non-normatively. Their wire representations are defined by the
 bundle-format ZIP. The remaining terms are defined by this ZIP.
 
@@ -303,7 +304,7 @@ Those base-protocol rules are depended upon, not re-specified here, so implement
 
 # Privacy Implications
 
-This subsection is non-normative.
+This section is explanatory and introduces no additional protocol requirements.
 
 ## Privacy of aggregation relationships
 
@@ -321,6 +322,13 @@ This ZIP will be deployed with [NuTachyon](draft-tachyon-nutachyon-upgrade.md).
 # Reference implementation
 
 The `zcash_tachyon` crate implements the bundle state machine, stamp merging, stripping, and the `hStampActionsTachyon` coverage check: <https://github.com/tachyon-zcash/tachyon>.
+
+Experimental miner-side aggregation is implemented in
+[Zakura PR #795](https://github.com/zakura-core/zakura/pull/795). During block-template
+construction, Zakura aggregates *autonome* transactions from its mempool and
+replaces covered transactions' proof stamps with pointer stamps. The mempool
+currently accepts only *autonome* Tachyon transactions; peer-to-peer aggregation
+and transaction relay of *aggregates* remain work in progress.
 
 # References
 
