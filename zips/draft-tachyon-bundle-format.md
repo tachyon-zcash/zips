@@ -23,8 +23,11 @@ Value commitments, spend authorization signatures, and binding signatures are ex
 The following terms are defined by other Tachyon ZIPs and summarized here non-normatively:
 
 Tachygram
-:   The `byte[32]` encoding of a field element ($\mathbb{F}_p$) representing either a note nullifier or a note commitment.
-    Consensus treats nullifiers and commitments identically (see [Tachyon Shielded Protocol](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/tachyon-shielded-protocol.md)).
+:   A Pallas base-field element representing a note commitment, a nullifier, or a
+    padding value, as defined under
+    [Tachygrams](draft-tachyon-shielded-protocol.md#tachygrams).
+    Its `byte[32]` wire representation is specified under
+    [Canonical encodings](#canonicalencodings).
 
 Anchor
 :   A Poseidon hash-chain state referencing the *Tachyon pool* at a specific block.
@@ -119,9 +122,12 @@ This ZIP does not independently define:
   [Tachygram accumulator](draft-tachyon-shielded-protocol.md#tachygramaccumulator),
   [Epochs](draft-tachyon-shielded-protocol.md#epochs), and
   [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks);
-* the transaction digest trees, the digest leaf algorithms, or the sighash algorithm, which are specified by ZIP 244 [^zip-0244] as extended for Tachyon ([Transaction digest contributions](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/zip-244.md#transaction-digest-contributions));
-* the aggregation lifecycle, mempool, and relay policy, which will be specified in
-  the [Tachyon Aggregation Protocol](draft-tachyon-aggregation-protocol.md) ZIP;
+* the complete transaction digest trees, digest leaf algorithms, or sighash
+  algorithm. These use the ZIP 244 framework [^zip-0244], with Tachyon-specific
+  integration still to be specified as noted under
+  [Transaction digest contributions](#transactiondigestcontributions);
+* the aggregation lifecycle, mempool, and relay policy, which are specified in
+  the [Tachyon Aggregator Protocol](draft-tachyon-aggregation-protocol.md#specification) ZIP;
 * the position of the bundle section within the transaction encoding, which is specified by the transaction format of the activating network upgrade.
 
 # Specification
@@ -196,7 +202,8 @@ When `tachyonBundleState` is not `0x00`, the body follows the discriminator byte
 `vActionSigsTachyon` is a sequence of `nActionsTachyon` 64-byte signatures; the $i$-th signature authorizes the $i$-th descriptor.
 Both sequences share the single count `nActionsTachyon`, so a count mismatch between descriptors and signatures is unrepresentable.
 The descriptor sequence's order is the transaction author's choice.
-The semantics of the actions themselves (what a spend or an output effects in the pool) are specified by the [Tachyon Shielded Protocol](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/tachyon-shielded-protocol.md) ZIP.
+The semantics of spends and outputs are described in the shielded-protocol ZIP's
+[Proof tree](draft-tachyon-shielded-protocol.md#prooftree) section.
 
 `vMemoTachyon` is an opaque recipient-directed payload of `nMemoTachyon` bytes; `nMemoTachyon` of $0$ encodes an absent payload.
 The memo contributes to `txid` and the sighash ([Transaction digest contributions](#transactiondigestcontributions)) rather than to `auth_digest`, so it is identical across bundle states.
@@ -216,7 +223,10 @@ binding validating key $\mathsf{bvk}$, which is derived rather than serialized.
 ## Action signatures
 
 Each action signature in `vActionSigsTachyon` MUST be a valid spend authorization signature (§ 4.15 ‘Spend Authorization Signature (Sapling and Orchard)’; RedPallas with the SpendAuth basepoint of § 5.4.7.1, for spends and outputs alike) over the transaction sighash under the corresponding action's $\mathsf{rk}$.
-The sighash is a transaction-level digest, computed as specified by ZIP 244 [^zip-0244] as extended for Tachyon ([Transaction digest contributions](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/zip-244.md#transaction-digest-contributions)); all of a bundle's signatures sign the same sighash.
+All of a bundle's signatures sign the same transaction-level sighash. The
+Tachyon-specific inputs and pending integration with the ZIP 244 framework
+[^zip-0244] are described under
+[Transaction digest contributions](#transactiondigestcontributions).
 
 ## Action digests
 
@@ -246,7 +256,9 @@ The digest of the empty sequence is the hash of the empty string under the same 
 
 This construction is used for two distinct digests, over two distinct sequences:
 
-* `hActionsTachyon`, an input to the effecting digest contribution ([ZIP 244 as extended for Tachyon](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/zip-244.md#transaction-digest-contributions)), is computed over the bundle's own actions in their `vActionsTachyon` wire order.
+* `hActionsTachyon`, an input to the
+  [effecting digest contribution](#transactiondigestcontributions), is computed over
+  the bundle's own actions in their `vActionsTachyon` wire order.
   It is not carried on the wire.
 * `hStampActionsTachyon`, carried on the proof stamp ([Proof stamp](#proofstamp)), is computed over every action a proof stamp covers, first sorted into ascending lexicographic order.
   Sorting makes it a function of the covered action multiset alone, independent of which transactions contributed it, or in what order a merge combined them.
@@ -279,7 +291,10 @@ and [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks).
 It is carried rather than derived by the reader, so a validator MUST confirm it against `vTachygrams` ([Block validity](#blockvalidity)).
 
 `vTachygrams` publishes the stamp's tachygram multiset for data availability.
-Which tachygrams an action contributes is specified by the [Tachyon Shielded Protocol](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/tachyon-shielded-protocol.md) ZIP; this ZIP imposes no relation between `nTachygrams` and `nActionsTachyon`, and a stamp covering actions that are not the bundle's own carries their tachygrams too.
+Which tachygrams an action contributes is specified under
+[Tachygrams](draft-tachyon-shielded-protocol.md#tachygrams) in the shielded-protocol ZIP;
+this ZIP imposes no relation between `nTachygrams` and `nActionsTachyon`, and a stamp
+covering actions that are not the bundle's own carries their tachygrams too.
 The tachygrams within one proof stamp MUST be distinct; a transaction violating this rule is invalid.
 Block-level distinctness is a block-validity rule of this ZIP
 ([Block validity](#blockvalidity)); cross-block distinctness within the retained
@@ -327,13 +342,21 @@ Which transaction it must identify within a block is specified in [Block validit
 ## Transaction digest contributions
 
 The bundle contributes one leaf to each of the transaction's two digest trees (ZIP 244 [^zip-0244]).
-This section states what the bundle supplies to each; the leaf algorithms and personalizations are specified by ZIP 244 as extended for Tachyon ([Transaction digest contributions](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/zip-244.md#transaction-digest-contributions)).
+This section specifies the bundle's digest inputs, not the complete algorithms.
+ZIP 244 defines the existing framework, but does not yet specify Tachyon's extension.
+
+TODO: Specify the Tachyon-specific digest leaf algorithms and personalizations,
+including `hMemoTachyon` and `stamp_digest`, and their integration into the
+activating transaction format's digest trees and sighash algorithm.
 
 The effecting contribution (to `txid` and the sighash) commits to `hActionsTachyon`, the descriptor digest over the bundle's own actions ([Action descriptor digests](#actiondescriptordigests)), to `valueBalanceTachyon`, and to `hMemoTachyon`, the digest of `vMemoTachyon`.
 `hActionsTachyon` is distinct from `hStampActionsTachyon`, which may cover more actions than the bundle's own.
 The stamp is excluded, so the contribution is invariant across stamping, merging, stripping, and re-stamping.
 
-The authorizing contribution (to `auth_digest`) commits to `tachyonBundleState`, to the action and binding signatures, and to the stamp, the latter through the 64-byte `stamp_digest` whose algorithm the ZIP 244 update specifies: a proof stamp's covered-actions digest and remaining fields, or a pointer stamp's `tachyonAggregateId` directly.
+The authorizing contribution (to `auth_digest`) commits to `tachyonBundleState`, to
+the action and binding signatures, and to the stamp. The stamp contributes a
+64-byte `stamp_digest`: a digest of a proof stamp's covered-actions digest and
+remaining fields, or a pointer stamp's `tachyonAggregateId` directly.
 The state byte separates the two stamp forms, whose contributions share the 64-byte shape.
 
 A transaction with no Tachyon bundle contributes distinctly from a bundle with no actions: no bundle produces the empty preimage, while every bundle's effecting contribution contains its encoded balance and its authorizing contribution contains at least its binding signature and `stamp_digest`.
@@ -491,13 +514,17 @@ This subsection is non-normative.
 ## Public data
 
 $\mathsf{cv}$ is a hiding commitment to the action's value.
-The unlinkability of $\mathsf{rk}$ and tachygrams depends on the [Tachyon Shielded Protocol](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/tachyon-shielded-protocol.md), not on their wire encoding.
+The unlinkability of $\mathsf{rk}$ and tachygrams depends on the shielded protocol,
+not on their wire encoding; see
+[Keys and addresses](draft-tachyon-shielded-protocol.md#keysandaddresses) and
+[Tachygrams](draft-tachyon-shielded-protocol.md#tachygrams). Payload confidentiality
+and note discovery depend on the payment protocol, as discussed under
+[Privacy and Security Implications](draft-tachyon-shielded-protocol.md#privacyandsecurityimplications).
 The action count, the value balance, and, on a proof-stamped bundle, the tachygram count are public, as is anything derivable from them.
 
 # Deployment
 
-This ZIP is deployed with a Tachyon network upgrade.
-Activation parameters are specified by the corresponding deployment ZIP ([Network Upgrade Deployment](https://github.com/turbocrime/tachyon/blob/ea029838355fecb981c5d261363c0baa91498ba3/book/src/zips/network-upgrade-deployment.md)).
+This ZIP will be deployed with [NuTachyon](draft-tachyon-nutachyon-upgrade.md).
 
 # Reference implementation
 
