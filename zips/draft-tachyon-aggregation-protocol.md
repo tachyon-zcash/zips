@@ -86,8 +86,6 @@ Miners remain free to include non-aggregated Tachyon transactions; any *aggregat
 * Preserve transaction-identifier stability: a transaction's `txid` is invariant across stamping, merging, and stripping.
 * Allow any participant to act as aggregator; no protocol-level exclusivity.
 * Enable a validator or miner to confirm they hold all necessary data before attempting proof verification.
-* Enable recovery of missing covered transactions while bounding dependency-serving
-  and retrieval work.
 * Introduce no new trust assumption: every invariant is enforced either by proof or by consensus rules.
 
 # Specification
