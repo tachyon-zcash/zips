@@ -76,11 +76,6 @@ Aggregation amortizes proof data and verification across covered transactions.
 The proof system permits public aggregation of already-published proofs, so the aggregator is a permissionless, conceptual role that any participant may take, not a designated prover.
 Aggregation reduces the number of stamp proofs a validator verifies, but the public-data, signature, and balance checks still apply.
 
-Nodes need not hold identical mempools. A receiver may therefore need to obtain
-missing covered transactions before it can validate, relay, or further aggregate
-an advertised *aggregate*. The advertising peer provides this dependency data;
-recovery does not require proof that the transactions were previously broadcast.
-
 Aggregation is optional.
 Miners remain free to include non-aggregated Tachyon transactions; any *aggregate* a block does contain must be fully backed by *adjuncts* in the same block.
 
