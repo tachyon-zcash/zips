@@ -244,12 +244,123 @@ penalty. Nodes MUST track the suppliers of aggregates and dependency responses
 separately, so invalid data from another responder is not attributed to the
 aggregate's sender. Scoring weights remain implementation policy.
 
-TODO: Specify the dependency description and request/response encodings, serving
-period and renewal rules, request limits, timeouts and retries, and the effects
-of transaction expiry, reorgs, and advertisement withdrawal on serving obligations.
-This subsection is not yet a complete wire protocol. Any stamp-stripped dependency
-encoding needs separate reconstruction semantics; it must not be treated as
-ordinary adjunct relay or as the original transaction's `MSG_WTX` object.
+#### Experimental dependency exchange version 1
+
+This version is provisional, opt-in, and intended for NuTachyon development
+networks. It does not allocate a production service bit or change block validity.
+Nodes that do not implement it continue to relay *autonomes* only. A receiver
+MUST NOT interpret an unsupported version or unavailable dependency as evidence
+of an invalid transaction. No stamp-stripped dependency encoding is defined.
+
+Version 1 uses a **flat manifest** of the original *autonome* transactions,
+including the original form of the transaction carrying the merged stamp.
+Each original is the complete, ordinary transaction serialized under its own
+`wtxid`; pointers and further manifests are not followed. The carrier original
+MUST differ from the advertised aggregate only in its proof stamp. All other
+effecting and authorizing data MUST be identical. This is a relay-policy
+restriction: constructing an aggregate on a new carrier without such an original
+remains consensus-valid but is outside this version's relay profile.
+
+The manifest MUST contain between 2 and 32 original transactions, with distinct
+`txid`s, ordered lexicographically by the 64 raw wire bytes of their `wtxid`s.
+The carrier original MUST occur exactly once. The advertised aggregate's own
+`wtxid` MUST NOT occur in its manifest. The sum of the serialized sizes of the
+aggregate and all originals MUST NOT exceed 4,194,304 bytes. Normal local
+transaction-size and fee policies also apply. A receiver MAY decline a package
+under stricter local resource policies, without assigning a validation penalty.
+
+The legacy transport adds these commands, using the usual message header and
+checksum. Integers are unsigned little-endian; `wtxid`s use the ZIP 239 wire
+encoding. Payloads MUST have exactly the described length, without trailing data.
+
+| Command | Payload |
+| --- | --- |
+| `getaggdeps` | `version: u8 = 1`, `aggregate: wtxid` (65 bytes) |
+| `aggdeps` | `version: u8 = 1`, `aggregate: wtxid`, `count: u16`, then `count` original `wtxid`s |
+
+A response with `count = 0` means unavailable, unsupported, or temporarily refused.
+It carries no availability or validation penalty. Nonzero counts outside 2..32,
+duplicate or noncanonical identifiers, and malformed encodings MUST be rejected
+before allocating dependency work. The maximum response payload is 2,115 bytes.
+Responses MUST match an outstanding request's exact aggregate `wtxid` and peer.
+Unsolicited responses MUST NOT start downloads, admission, or relay.
+
+On Zakura's experimental legacy-compatibility request stream (kind 3, version 1),
+message types 19 and 20 carry `getaggdeps` and `aggdeps`, respectively. The request
+payload is identical to the legacy payload. A response prefixes that payload
+with the stream's existing 8-byte request identifier. Stream framing, request
+correlation, and end-of-response rules are otherwise unchanged. These identifiers
+are experimental assignments, not allocations for a finalized transport ZIP.
+
+After obtaining a manifest, a receiver first reuses locally held transactions
+whose exact `wtxid`s match. It fetches missing originals using existing
+`getdata(MSG_WTX)` / `tx` exchanges (or their Zakura compatibility equivalents),
+preferably from the manifest supplier. It MUST match every returned transaction
+to the requested `wtxid`; matching only `txid` is insufficient. The receiver MUST
+NOT recursively fetch dependencies of a returned original. A sender serves these
+ordinary inventory objects from its retention cache even after mempool eviction.
+
+#### Admission, retention, and resource policy
+
+Before admitting a package, a receiver MUST check its size, flatness, carrier
+identity, complete action coverage, and tachygram distinctness. It MUST verify
+every original as an ordinary mempool transaction, and independently verify the
+aggregate's stamp, signatures, and contextual validity. The carrier original is
+excluded when reconstructing the aggregate's covered actions, because those
+actions are already carried by the aggregate. Originals MUST NOT conflict with
+one another through transparent spends or shielded nullifiers. A valid proof
+does not exempt any transaction from ordinary fee, balance, expiry, anchor, or
+signature checks. Verification completed against a superseded tip MUST be retried
+or discarded before admission.
+
+Distinct authorization forms MUST be stored and served under their exact
+`wtxid`s. They MUST NOT be counted as separate spends, outputs, or fees. An
+implementation MAY keep verified aggregate alternatives alongside its ordinary
+effect-indexed mempool. Mining MUST select at most one form per `txid` and MUST
+only substitute an aggregate when every original in its manifest has been
+selected. All covered originals except the carrier become pointer-stamped
+adjuncts naming the final aggregate `wtxid`. The substituted package MUST fit
+the block's limits; otherwise the miner retains the selected *autonomes*.
+
+Each advertisement, including a response to a `mempool` request, creates a
+600-second serving lease starting when the advertisement is queued. The sender
+MUST reserve capacity for the aggregate, its manifest, and all originals before
+advertising. Re-advertisement renews the lease. Dependency reads do not renew it.
+An unexpired lease MUST NOT be evicted to admit another package. When capacity
+is unavailable the node stops advertising new aggregates; it MAY continue
+relaying *autonomes*. An implementation MUST bound retained packages by both
+count and bytes. The reference limits are 64 packages and 67,108,864 serialized
+bytes, conservatively charging shared originals to every package.
+
+Mempool eviction, transaction expiry, confirmation, anchor expiry, reorgs, and
+advertisement withdrawal stop new advertisements of an affected package but
+MUST NOT shorten an existing serving lease. Serving stale bytes does not
+authorize their admission or mining. After a reorg a package MUST be revalidated
+before further advertisement. Leases are connection-lifetime obligations: node
+shutdown or disconnection ends the obligation to that connection, without
+requiring on-disk retention. A restarted node does not re-advertise cached data
+without validation.
+
+Pending work MUST have per-peer and global concurrency and byte bounds, and a
+rate bound independent of successful completion. The reference policy permits
+at most four concurrent packages globally, one per advertising peer, and two
+new package attempts per second globally. Each package reserves its full 4 MiB
+budget before downloading originals. Individual exchanges time out after ten
+seconds; the complete dependency acquisition and validation attempt times out
+after thirty seconds. A timeout MUST release network and pending-memory capacity;
+non-cancellable proof workers remain charged to a bounded worker pool until
+completion. A receiver MAY retry on a later advertisement, subject to the same
+limits, but MUST NOT recursively retry within an attempt.
+
+Serving requests MUST also be rate- and byte-limited per connection and globally;
+the reference implementation uses the existing bounded transaction-serving path
+and limits manifest responses to one per second per connection and eight per
+second globally. Refusal at any resource limit is not a validation fault.
+Implementations MUST keep the aggregate advertiser and each actual responder
+separate in their accounting. Invalid dependency data MUST NOT cause a validation
+penalty against a different advertiser. The reference policy declines incomplete
+or invalid packages without imposing an aggregate-advertiser ban score; existing
+transport penalties for malformed messages are unchanged.
 
 ### Duplicate tachygrams are transaction-invalid
 
@@ -384,9 +495,13 @@ The `zcash_tachyon` crate implements the bundle state machine, stamp merging, st
 Experimental miner-side aggregation is implemented in
 [Zakura PR #795](https://github.com/zakura-core/zakura/pull/795). During block-template
 construction, Zakura aggregates *autonome* transactions from its mempool and
-replaces covered transactions' proof stamps with pointer stamps. The mempool
-currently accepts only *autonome* Tachyon transactions; peer-to-peer aggregation
-and transaction relay of *aggregates* remain work in progress.
+replaces covered transactions' proof stamps with pointer stamps. The experimental
+`c/p2p-aggregation` implementation, layered on that PR, adds the version-1
+dependency exchange, leased aggregate retention, verified aggregate relay, and
+miner-side consumption and re-aggregation. It is opt-in through
+`mempool.enable_tachyon_aggregation`; the default remains *autonome*-only relay.
+This is a development-network implementation using the inherited mock proof
+system, not a production-ready deployment or a finalized wire-protocol allocation.
 
 # References
 
