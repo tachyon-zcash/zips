@@ -76,8 +76,14 @@ Aggregation amortizes proof data and verification across covered transactions.
 The proof system permits public aggregation of already-published proofs, so the aggregator is a permissionless, conceptual role that any participant may take, not a designated prover.
 Aggregation reduces the number of stamp proofs a validator verifies, but the public-data, signature, and balance checks still apply.
 
-Aggregation is optional.
+Participation in peer-to-peer aggregation is optional: nodes can relay only
+*autonome* Tachyon transactions, and miners can perform aggregation locally without
+receiving *aggregates* from other peers. This does not change the consensus
+requirements for validating blocks containing *aggregates* and *adjuncts*.
 Miners remain free to include non-aggregated Tachyon transactions; any *aggregate* a block does contain must be fully backed by *adjuncts* in the same block.
+
+Nodes that choose to advertise *aggregates* are subject to the
+[dependency-serving requirements](#aggregatedependencyavailability) specified below.
 
 # Requirements
 
