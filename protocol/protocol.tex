@@ -1308,6 +1308,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\outputProof}{\term{Output proof}}
 \newcommand{\actionDescription}{\term{Action description}}
 \newcommand{\actionDescriptions}{\terms{Action description}}
+\newcommand{\tachyonActionDescription}{\termandindex{\TachyonProto{} Action description}{Tachyon Action description}}
 \newcommand{\actionTransfer}{\term{Action transfer}}
 \newcommand{\actionTransfers}{\terms{Action transfer}}
 \newcommand{\actionCircuit}{\term{Action circuit}}
@@ -3888,10 +3889,13 @@ Creation of new \notes is described in \crossref{send}.
 
 \lsubsubsection{Note Plaintexts and Memo Fields}{noteptconcept}
 
-Transmitted \notes are stored on the \blockChain in encrypted form, together with
+Transmitted \notes\nutachyon{ in \Sprout, \Sapling, and \Orchard}
+are stored on the \blockChain in encrypted form, together with
 a representation of the \noteCommitment $\cm$ described in \crossref{notecommitmentconcept}.
+\nutachyon{\Tachyon does not require encrypted \notes to be published on the \blockChain.}
 
-A \notePlaintext also includes a $\MemoByteLength$-byte \defining{\memo} associated
+A\nutachyon{ \Sprout, \Sapling, or \Orchard} \notePlaintext also includes
+a $\MemoByteLength$-byte \defining{\memo} associated
 with this \note. The usage of the \memo is by agreement between the sender and recipient
 of the \note. \RECOMMENDED{} \nh{non-consensus} constraints on the \memo contents are specified
 in \cite{ZIP-302}.
@@ -3979,17 +3983,29 @@ The use of the field $\NoteSeedBytes$ is described in \cite{ZIP-212}.
 } %saplingonward
 
 \vspace{1.5ex}
-Encodings are given in \crossref{noteptencoding}.
+Encodings\nutachyon{ for these \notePlaintexts} are given in \crossref{noteptencoding}.
 The result of encryption forms part of a \noteOrNotesCiphertext.
-For further details, see \crossref{sproutinband}\sapling{ and \crossref{saplingandorchardinband}}.
+For further details, see \shortcrossref{sproutinband}\sapling{ and \shortcrossref{saplingandorchardinband}}.
+
+\notbeforenutachyon{\vspace{1.5ex}}
+\nutachyononward{
+\Tachyon does not prescribe a \notePlaintext encoding, a \notePlaintextLeadByte,
+or a fixed-size per-note \memo. A \Tachyon bundle can carry a variable-length opaque payment-protocol payload,
+which can be empty. Its contents may include encrypted \notes, but the shielded
+protocol does not interpret them or require a ciphertext for each created \note.
+} %nutachyononward
 
 \lsubsubsection{Note Commitments}{notecommitmentconcept}
 
-When a \note is created as an output of a \transaction, only a commitment (see
+When a \note\nutachyon{ in \Sprout, \Sapling, or \Orchard} is created as an output of a
+\transaction, only a commitment (see
 \crossref{abstractcommit}) to the \note contents is disclosed publically in the associated
 \joinSplitDescription\sapling{ or \outputDescription}\nufive{ or \actionDescription}. If the
 \transaction is entered into the \blockChain, each such \noteCommitment is appended to the
 \noteCommitmentTree of the associated \treestate.
+\nutachyon{In \Tachyon, creation of a \note is represented by a \tachyonActionDescription
+(see \shortcrossref{tachyonactiondesc}). Its \noteCommitment is published separately as a
+tachygram in the covering stamp and is incorporated into the pool's tachygram accumulator.}
 This allows the value and recipient to be kept private, while the commitment is
 used by the \zkSNARKProof when the \note is spent, to check that it exists
 on the \blockChain.
@@ -6409,6 +6425,21 @@ encoded in the $\proofsField{\OrchardLike}$ field.}
         they are only checked to encode integers in $\range{0}{\ParamP{q}-1}$.
 \end{nnotes}
 } %nufive
+
+
+\nutachyon{
+\introsection
+\lsubsection{Action Descriptions (\TachyonText)}{tachyonactiondesc}
+
+A \defining{\tachyonActionDescription} represents either spending an existing \note or
+creating a new \note. Both operations use the same public representation, with no
+spend/output discriminator, but are subject to different proof constraints.
+
+\todo{Specify the field types and encoding of the value commitment and randomized
+action verification key, the associated authorization signature, and the relationship
+to the covering stamp and its tachygrams. Signature derivation and verification are
+specified in \shortcrossref{tachyonactionauth}.}
+} %nutachyon
 
 
 \vspace{-2.5ex}
@@ -16091,6 +16122,10 @@ Peter Newell's illustration of the Jubjub bird, from \cite{Carroll1902}.
     \item Add the Tachyon pool and note tuple to \shortcrossref{notes}, with placeholders
           for note commitments and nullifier derivation in
           \shortcrossref{concretetachyonnotecommit} and \shortcrossref{concretetachyonprfs}.
+    \item Clarify in \shortcrossref{noteptconcept} that Tachyon leaves note plaintext
+          and memo formats to payment protocols and does not require on-chain note ciphertexts.
+    \item Distinguish Tachyon note-commitment publication in \shortcrossref{notecommitmentconcept}
+          and add a placeholder for Tachyon Action descriptions in \shortcrossref{tachyonactiondesc}.
 \end{itemize}
 } %nutachyon
 
