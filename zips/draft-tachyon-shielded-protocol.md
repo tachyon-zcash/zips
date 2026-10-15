@@ -101,9 +101,13 @@ actions to the tachygrams and establishes the corresponding note-creation or
 spendability statements.[^protocol-tachyon-stamp-verification]
 
 A stamp can cover actions from a single transaction or aggregate actions from
-multiple transactions. [Aggregation](draft-tachyon-aggregation-protocol.md) replaces
+multiple transactions. [Aggregation](#prooftree) replaces
 the input stamps with a single stamp, while the actions and their signatures
 remain in their respective transactions.[^tachyon-proof-tree]
+The bundle-format ZIP specifies how
+[pointer stamps](draft-tachyon-bundle-format.md#pointerstamp) reference the covering
+transaction and how [block validation](draft-tachyon-bundle-format.md#blockvalidity)
+checks complete coverage.
 
 
 ## Epochs
@@ -316,10 +320,6 @@ state.
   epoch transitions incorporated as specified under
   [Tachygram accumulator](#tachygramaccumulator).
 
-The [aggregation lifecycle and relay policy](draft-tachyon-aggregation-protocol.md#specification)
-apply these rules without eliminating the checks on individual bundles.
-
-
 # Privacy and Security Implications
 
 Confidential note transmission, recipient authentication, and note discovery are
@@ -335,6 +335,9 @@ leakage through payment metadata also depend on the higher-level payment
 protocol.[^tachyon-payment-protocols]
 
 # Non-requirements
+
+This ZIP does not prescribe P2P aggregation messages, covered-transaction discovery,
+or mempool and relay policy. 
 
 The Tachyon shielded protocol is unopinionated about the payment protocols
 constructed on top of it. This ZIP does not prescribe payment-address formats,

@@ -26,6 +26,9 @@ License: MIT
 
 # Non-requirements
 
+This ZIP does not specify P2P aggregation messages, covered-transaction discovery,
+or mempool and relay policy.
+
 
 # Specification
 
@@ -73,9 +76,12 @@ and [Block validity](draft-tachyon-bundle-format.md#blockvalidity) sections.
 
 ### Network behavior
 
-See the [Tachyon Aggregator Protocol](draft-tachyon-aggregation-protocol.md#specification)
-ZIP for the aggregation lifecycle, including
-[Transaction identifiers and P2P relay](draft-tachyon-aggregation-protocol.md#transactionidentifiersandp2prelay).
+Consensus-level proof aggregation does not require a dedicated P2P aggregation
+protocol. Miners can construct covering stamps locally or include transactions
+whose proof stamps cover only their own actions, as described in the bundle-format
+ZIP's [Motivation](draft-tachyon-bundle-format.md#motivation).
+All validators apply the [consensus rules](#consensusrules), whether or not they
+construct or relay aggregated proofs.
 
 
 ## Backward compatibility

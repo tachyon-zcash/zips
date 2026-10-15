@@ -20,7 +20,8 @@ The character § is used when referring to sections of the Zcash Protocol Specif
 `txid`, `auth_digest`, and the SIGHASH transaction hash are defined by ZIP 244 [^zip-0244]; `wtxid = txid || auth_digest`, the 64-byte identifier used for transaction announcement and relay, by ZIP 239 [^zip-0239].
 Value commitments, spend authorization signatures, and binding signatures are existing constructions (§ 5.4.8.3 ‘Homomorphic Pedersen commitments (Sapling and Orchard)’, § 4.15 ‘Spend Authorization Signature (Sapling and Orchard)’, and § 4.14 ‘Balance and Binding Signature (Orchard)’, respectively, in their Orchard instantiations); this ZIP applies them to Tachyon as specified below rather than redefining them.
 
-The following terms are defined by other Tachyon ZIPs and summarized here non-normatively:
+The following terms are defined by the
+[Tachyon Shielded Protocol](draft-tachyon-shielded-protocol.md) ZIP and summarized here:
 
 Tachygram
 :   A Pallas base-field element representing a note commitment, a nullifier, or a
@@ -91,7 +92,7 @@ defines the v5 transaction fields for the [Orchard shielded protocol](zip-0224.r
 
 # Motivation
 
-To improve scalability, the [Tachyon shielded protocol](draft-tachyon-shielded-protocol.md) introduces support for [proof aggregation](draft-tachyon-aggregation-protocol.md): the [stamps](draft-tachyon-shielded-protocol.md#stamp) of many transactions merge into one covering stamp, and covered transactions appear in a block with their stamp stripped and replaced by a [pointer](#pointerstamp).
+To improve scalability, the [Tachyon shielded protocol](draft-tachyon-shielded-protocol.md) introduces support for [proof aggregation](draft-tachyon-shielded-protocol.md#prooftree): the [stamps](draft-tachyon-shielded-protocol.md#stamp) of many transactions merge into one covering stamp, and covered transactions appear in a block with their stamp stripped and replaced by a [pointer](#pointerstamp).
 The transaction format must therefore allow a stamp to be removed without changing the transaction's identity and without invalidating any signature.
 This forces the effecting/authorizing split down into the wire layout: the bundle's contribution to the signed data is confined to the body and is identical across bundle states, while the strippable part is isolated in the stamp.
 
@@ -126,8 +127,7 @@ This ZIP does not independently define:
   algorithm. These use the ZIP 244 framework [^zip-0244], with Tachyon-specific
   integration still to be specified as noted under
   [Transaction digest contributions](#transactiondigestcontributions);
-* the aggregation lifecycle, mempool, and relay policy, which are specified in
-  the [Tachyon Aggregator Protocol](draft-tachyon-aggregation-protocol.md#specification) ZIP;
+* P2P aggregation messages, covered-transaction discovery, or mempool and relay policy;
 * the position of the bundle section within the transaction encoding, which is specified by the transaction format of the activating network upgrade.
 
 # Specification
@@ -411,7 +411,8 @@ This subsection is non-normative.
 ## The stamp is excluded from the txid contribution
 
 The effecting contribution excludes the stamp, so stamping, merging, stripping, and re-stamping preserve a transaction's logical identity.
-This is the property the aggregation lifecycle rests on: a pointer-stamped transaction in a block is the same transaction its author signed.
+This allows proof aggregation without changing the transaction its author signed:
+a pointer-stamped transaction retains the same effecting data and signatures.
 
 ## Zero-action balance
 
@@ -503,7 +504,9 @@ A signature authorizes only the sighash it signs; using an action in a transacti
 <div class="note"></div>
 
 Parse validity is not spend validity.
-A bundle that parses and whose signatures verify is not thereby valid to spend; the rules enumerated in [Non-requirements](#non-requirements) also apply.
+A bundle that parses and whose signatures verify is not thereby valid to spend;
+the [Block validity](#blockvalidity) rules and the shielded protocol's
+[Consensus rules](draft-tachyon-shielded-protocol.md#consensusrules) also apply.
 Implementers and auditors should not assume the rules in this ZIP alone establish those properties.
 
 
@@ -521,6 +524,10 @@ not on their wire encoding; see
 and note discovery depend on the payment protocol, as discussed under
 [Privacy and Security Implications](draft-tachyon-shielded-protocol.md#privacyandsecurityimplications).
 The action count, the value balance, and, on a proof-stamped bundle, the tachygram count are public, as is anything derivable from them.
+
+Aggregation does not hide in-block coverage: pointer stamps publicly name their
+covering transaction. For a bundle with no actions, this reference does not
+establish which stamp previously covered it (see [Block validity](#blockvalidity)).
 
 # Deployment
 
