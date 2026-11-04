@@ -24,6 +24,8 @@ Building
 
 Use:
 
+* ``make nutachyon`` to make the specification for NUTachyon
+  (``../rendered/protocol/nutachyon.pdf``);
 * ``make nufour`` to make the draft specification for NU4 (``nufour.pdf``);
 * ``make heartwood`` to make the specification for Heartwood (``protocol.pdf``);
 * ``make blossom`` to make the specification for the Blossom upgrade
@@ -46,6 +48,10 @@ automatically rebuild when changes in the source files are detected, by adding
 ``EXTRAOPT=-pvc`` to the ``make`` command line. In this case the updated PDF
 files will be in the ``aux/`` directory. Manual intervention is still needed
 when there are LaTeX errors.
+
+For NUTachyon, run ``make auxnutachyon EXTRAOPT=-pvc`` and open
+``aux/nutachyon.pdf``. This target uses its own version settings, so it does
+not change the upgrade selected by an existing preview of another version.
 
 
 Alternative TeX engines

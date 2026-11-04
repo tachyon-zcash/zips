@@ -55,10 +55,10 @@ protocol: $(PDFDIR)/protocol.pdf
 protocol-dark: $(PDFDIR)/protocol-dark.pdf
 
 all-pdfs: .Makefile.uptodate
-	$(MAKE) $(PDFDIR)/nu6_3.pdf $(PDFDIR)/protocol.pdf $(PDFDIR)/protocol-dark.pdf $(PDFDIR)/nu6_1.pdf $(PDFDIR)/nu6.pdf $(PDFDIR)/nu5.pdf $(PDFDIR)/canopy.pdf $(PDFDIR)/heartwood.pdf $(PDFDIR)/blossom.pdf $(PDFDIR)/sapling.pdf
+	$(MAKE) $(PDFDIR)/nutachyon.pdf $(PDFDIR)/nu6_3.pdf $(PDFDIR)/protocol.pdf $(PDFDIR)/protocol-dark.pdf $(PDFDIR)/nu6_1.pdf $(PDFDIR)/nu6.pdf $(PDFDIR)/nu5.pdf $(PDFDIR)/canopy.pdf $(PDFDIR)/heartwood.pdf $(PDFDIR)/blossom.pdf $(PDFDIR)/sapling.pdf
 
 all-specs: .Makefile.uptodate
-	$(MAKE) nu6_3 nu6_2 nu6_2-dark nu6_1 nu6 nu5 canopy heartwood blossom sapling
+	$(MAKE) nutachyon nu6_3 nu6_2 nu6_2-dark nu6_1 nu6 nu5 canopy heartwood blossom sapling
 
 discard:
 	git checkout -- "$(PDFDIR)/*.pdf"
@@ -96,6 +96,9 @@ $(PDFDIR)/protocol-dark.pdf: protocol.tex zcash.bib jubjub.png key_components_sa
 
 $(PDFDIR)/nu6_3.pdf: protocol.tex zcash.bib jubjub.png key_components_sapling.png key_components_orchard.png incremental_merkle.png
 	$(MAKE) nu6_3
+
+$(PDFDIR)/nutachyon.pdf: protocol.tex zcash.bib jubjub.png key_components_orchard.png key_components_tachyon.png incremental_merkle.png
+	$(MAKE) nutachyon
 
 .PHONY: auxsapling sapling
 auxsapling:
@@ -239,6 +242,18 @@ nu6_3-dark:
 	$(MAKE) auxnu6_3-dark
 	mkdir -p $(PDFDIR)
 	mv -f aux/nu6_3-dark.pdf $(PDFDIR)
+
+.PHONY: auxnutachyon nutachyon
+auxnutachyon:
+	mkdir -p aux
+	printf '\\toggletrue{isnutachyon}\n\\renewcommand{\\docversion}{Version %s [\\NUTachyonSpec]}\n' "$$(git describe --tags --abbrev=6 |sed 's/-1-g.*//;s/-auto//')" |tee aux/nutachyon.ver
+	cp mymakeindex.sh aux
+	$(LATEXMK) -jobname=nutachyon -auxdir=aux -outdir=aux $(EXTRAOPT) protocol $(NOCRUFT)
+
+nutachyon:
+	$(MAKE) auxnutachyon
+	mkdir -p $(PDFDIR)
+	mv -f aux/nutachyon.pdf $(PDFDIR)
 
 .PHONY: clean
 clean:

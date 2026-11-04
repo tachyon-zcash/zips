@@ -73,7 +73,7 @@
 \makeatother
 
 
-% Load version-specific properties from protocol.ver
+% Prefer per-job version properties, falling back to protocol.ver for existing builds.
 \newcommand{\docversion}{Version unavailable (check protocol.ver)}
 \newcommand{\SaplingSpec}{Overwinter+Sapling}
 \newcommand{\BlossomSpec}{Overwinter+Sapling+Blossom}
@@ -84,6 +84,7 @@
 \newcommand{\NUSixOneSpec}{NU6.1}
 \newcommand{\NUSixTwoSpec}{NU6.2}
 \newcommand{\NUSixThreeSpec}{NU6.3 proposal}
+\newcommand{\NUTachyonSpec}{NUTachyon}
 \newtoggle{issapling}
 \togglefalse{issapling}
 \newtoggle{isblossom}
@@ -102,11 +103,13 @@
 \togglefalse{isnusixtwo}
 \newtoggle{isnusixthree}
 \togglefalse{isnusixthree}
+\newtoggle{isnutachyon}
+\togglefalse{isnutachyon}
 \newtoggle{isnuseven}
 \togglefalse{isnuseven}
 \newtoggle{darkmode}
 \togglefalse{darkmode}
-\InputIfFileExists{protocol.ver}{}{}
+\InputIfFileExists{aux/\jobname.ver}{}{\InputIfFileExists{protocol.ver}{}{}}
 
 \iftoggle{darkmode}{
   \colorlet{crossrefblue}{MidnightBlue}
@@ -647,6 +650,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
   \colorlet{pink}{magenta!70}
   \definecolor{burgundy}{RGB}{210,20,80}
   \definecolor{brown}{RGB}{160,50,50}
+  \definecolor{teal}{RGB}{75,195,190}
   \colorlet{warningred}{BrickRed}
   \colorlet{cream}{yellow!20}
 
@@ -662,6 +666,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
   \colorlet{pink}{magenta!75}
   \definecolor{burgundy}{RGB}{200,18,75}
   \colorlet{brown}{Sepia}
+  \definecolor{teal}{RGB}{0,112,122}
   \colorlet{warningred}{BrickRed}
   \colorlet{cream}{yellow!20}
 
@@ -691,6 +696,8 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\nusixtwocolorname}{\nusixtwocolor}
 \newcommand{\nusixthreecolor}{blue}
 \newcommand{\nusixthreecolorname}{bright blue}
+\newcommand{\nutachyoncolor}{teal}
+\newcommand{\nutachyoncolorname}{\nutachyoncolor}
 \newcommand{\labelcolor}{cream}
 
 \iftoggle{isnuseven}{
@@ -700,6 +707,20 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
   \newcommand{\nuseven}[1]{}
   \newcommand{\notnuseven}[1]{#1}
   \newcommand{\notbeforenuseven}[1]{}
+}
+
+\iftoggle{isnutachyon}{
+  \providecommand{\baseurl}{https://zips.z.cash/protocol/nutachyon.pdf}
+  \toggletrue{isnusixthree}
+  \newcommand{\setnutachyon}{\color{\nutachyoncolor}}
+  \newcommand{\nutachyon}[1]{\texorpdfstring{{\setnutachyon{#1}}}{#1}}
+  \newcommand{\notnutachyon}[1]{}
+  \newcommand{\notbeforenutachyon}[1]{#1}
+} {
+  \newcommand{\setnutachyon}{}
+  \newcommand{\nutachyon}[1]{}
+  \newcommand{\notnutachyon}[1]{#1}
+  \newcommand{\notbeforenutachyon}[1]{}
 }
 
 \iftoggle{isnusixthree}{
@@ -983,6 +1004,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\NUSixTwo}{\readasunicode{004e200b0055200b0036002e0032}{\termandindexx{\upgradetype{NU6.2}}{NU6.2 (Network Upgrade 6.2)}}\xspace}
 % "N<zwsp>U<zwsp>6.3"
 \newcommand{\NUSixThree}{\readasunicode{004e200b0055200b0036002e0033}{\termandindexx{\upgradetype{NU6.3}}{NU6.3 (Network Upgrade 6.3)}}\xspace}
+\newcommand{\NUTachyon}{\readas{N U Tachyon upgrade}{\termandindexx{\upgradetype{NUTachyon}}{NUTachyon (Network Upgrade)}}\xspace}
 % "N<zwsp>U<zwsp>7"
 \newcommand{\NUSeven}{\readasunicode{004e200b0055200b0037}{\termandindexx{\upgradetype{NU7}}{NU7 (Network Upgrade 7)}}\xspace}
 
@@ -992,6 +1014,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\SproutProto}{\subprotocoltype{Sprout}}
 \newcommand{\SaplingProto}{\subprotocoltype{Sapling}}
 \newcommand{\OrchardProto}{\subprotocoltype{Orchard}}
+\newcommand{\TachyonProto}{\subprotocoltype{Tachyon}}
 
 % The Sprout shielded protocol.
 \newcommand{\SproutShieldedProtocol}{\termandindex{\SproutProto{} shielded protocol}{Sprout shielded protocol}}
@@ -1010,6 +1033,10 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\OrchardProtocolAdj}{\termandindex{\OrchardProto{}-protocol}{Orchard shielded protocol}}
 \newcommand{\Orchard}{\readas{Orchard protocol}{\OrchardProto}\xspace}
 \newcommand{\OrchardText}{\texorpdfstring{\OrchardProto}{Orchard}}
+
+% The Tachyon shielded protocol
+\newcommand{\Tachyon}{\readas{Tachyon protocol}{\TachyonProto}\xspace}
+\newcommand{\TachyonText}{\texorpdfstring{\TachyonProto}{Tachyon}}
 
 % The Sapling or Orchard shielded protocols
 \newcommand{\SaplingOrOrchard}{\Sapling{}\nufive{ or \Orchard{}}\xspace}
@@ -1044,6 +1071,10 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\IronwoodChainValuePool}{\termpoolandindex{Ironwood chain value pool}{Ironwood pool}}
 \newcommand{\IronwoodPool}{\termpoolandindex{Ironwood pool}{Ironwood pool}}
 \newcommand{\IronwoodPoolAdj}{\termpoolandindex{Ironwood-pool}{Ironwood pool}}
+
+% The Tachyon pool
+\newcommand{\TachyonPool}{\termpoolandindex{Tachyon pool}{Tachyon pool}}
+\newcommand{\TachyonPoolAdj}{\termpoolandindex{Tachyon-pool}{Tachyon pool}}
 
 % Sapling or Orchard pool, excluding Ironwood.
 \newcommand{\SaplingOrOrchardPool}{\sapling{\SaplingPool{}}\nufive{ or \OrchardPool{}}\xspace}
@@ -1277,6 +1308,8 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\outputProof}{\term{Output proof}}
 \newcommand{\actionDescription}{\term{Action description}}
 \newcommand{\actionDescriptions}{\terms{Action description}}
+\newcommand{\tachyonActionDescription}{\termandindex{\TachyonProto{} Action description}{Tachyon Action description}}
+\newcommand{\tachyonActionDescriptions}{\termandindex{\TachyonProto{} Action descriptions}{Tachyon Action description}}
 \newcommand{\actionTransfer}{\term{Action transfer}}
 \newcommand{\actionTransfers}{\terms{Action transfer}}
 \newcommand{\actionCircuit}{\term{Action circuit}}
@@ -1521,6 +1554,10 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\consensusBranch}{\term{consensus branch}}
 \newcommand{\consensusBranches}{\termes{consensus branch}}
 \newcommand{\mempool}{\term{mempool}}
+\newcommand{\shieldedPoolState}{\term{shielded pool state}}
+\newcommand{\shieldedPoolStates}{\terms{shielded pool state}}
+\newcommand{\xShieldedPoolStates}{\termxs{shielded pool state}}
+\newcommand{\tachygramAccumulator}{\term{tachygram accumulator}}
 \newcommand{\treestate}{\term{treestate}}
 \newcommand{\treestates}{\terms{treestate}}
 \newcommand{\xTreestates}{\termxs{treestate}}
@@ -1528,6 +1565,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\nullifiers}{\terms{nullifier}}
 \newcommand{\xNullifier}{\termx{nullifier}}
 \newcommand{\xNullifiers}{\termxs{nullifier}}
+\newcommand{\evolvingNullifiers}{\terms{evolving nullifier}}
 \newcommand{\nullifierSet}{\term{nullifier set}}
 \newcommand{\nullifierSets}{\terms{nullifier set}}
 \newcommand{\paymentAddress}{\term{payment address}}
@@ -1576,6 +1614,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\extendedSpendingKey}{\term{extended spending key}}
 \newcommand{\extendedSpendingKeys}{\terms{extended spending key}}
 \newcommand{\payingKey}{\term{paying key}}
+\newcommand{\paymentKey}{\term{payment key}}
 \newcommand{\transmissionKey}{\term{transmission key}}
 \newcommand{\transmissionKeys}{\terms{transmission key}}
 \newcommand{\diversifiedTransmissionKey}{\term{diversified transmission key}}
@@ -1964,6 +2003,9 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\AuthSignRandomizedPrivate}{\mathsf{rsk}}
 \newcommand{\AuthSignRandomizer}{\alpha}
 \newcommand{\AuthSignRandomizerRepr}{{\AuthSignRandomizer\Repr}}
+\newcommand{\PaymentKey}{\mathsf{pk}}
+\newcommand{\NoteMasterKey}{\mathsf{mk}}
+\newcommand{\DeriveNoteMasterKey}{\mathsf{Derive\_mk}^{\TachyonProto}}
 \newcommand{\AuthProvePrivate}{\mathsf{nsk}}
 \newcommand{\AuthProvePrivateRepr}{{\AuthProvePrivate\Repr}}
 \newcommand{\AuthProveBaseSapling}{\mathcal{H}^{\SaplingProto}}
@@ -2938,6 +2980,7 @@ electronic commerce and payment, financial privacy, proof of work, zero knowledg
 \newcommand{\prenuseven}[1]{\notbeforenuseven{\nuseven{[Pre-\NUSeven\!]\,}} {#1}}
 \newcommand{\nusevenonly}[1]{\nuseven{[\NUSeven only]\, {#1}}}
 \newcommand{\nusevenonward}[1]{\nuseven{[\NUSeven onward]\, {#1}}}
+\newcommand{\nutachyononward}[1]{\nutachyon{[\NUTachyon onward]\, {#1}}}
 \newcommand{\prenusixthree}[1]{\notbeforenusixthree{\nusixthree{[Pre-\NUSixThree\!]\,}} {#1}}
 \newcommand{\nusixthreeonly}[1]{\nusixthree{[\NUSixThree only]\, {#1}}}
 \newcommand{\nusixthreeonward}[1]{\nusixthree{[\NUSixThree onward]\, {#1}}}
@@ -3049,7 +3092,8 @@ memory-hard \proofOfWork algorithm.
 \notnusixone{\nusix{\thisspecdefines{\NUOverwinter, \NUSapling, \NUBlossom, \NUHeartwood, \NUCanopy, \NUFive, and \NUSix}}}%
 \notnusixtwo{\nusixone{\thisspecdefines{\NUOverwinter, \NUSapling, \NUBlossom, \NUHeartwood, \NUCanopy, \NUFive, \NUSix, and \NUSixOne}}}%
 \notnusixthree{\nusixtwo{\thisspecdefines{\NUOverwinter, \NUSapling, \NUBlossom, \NUHeartwood, \NUCanopy, \NUFive, \NUSix, \NUSixOne, and \NUSixTwo}}}%
-\nusixthree{\thisspecdefinesandproposes{\NUOverwinter, \NUSapling, \NUBlossom, \NUHeartwood, \NUCanopy, \NUFive, \NUSix, \NUSixOne, \NUSixTwo}{\NUSixThree}}%
+\notnutachyon{\nusixthree{\thisspecdefinesandproposes{\NUOverwinter, \NUSapling, \NUBlossom, \NUHeartwood, \NUCanopy, \NUFive, \NUSix, \NUSixOne, \NUSixTwo}{\NUSixThree}}}%
+\nutachyon{\thisspecdefines{\NUOverwinter, \NUSapling, \NUBlossom, \NUHeartwood, \NUCanopy, \NUFive, \NUSix, \NUSixOne, \NUSixTwo, \NUSixThree, and \NUTachyon}}%
 It is a work in progress. Protocol differences from \Zerocash and \Bitcoin are also explained.
 
 \vspace{2ex}
@@ -3130,6 +3174,9 @@ are highlighted in \nusixtwo{\nusixtwocolorname}.}
 
 \notbeforenusixthree{Changes specific to the proposed \NUSixThree upgrade following \NUSixTwo
 are highlighted in \nusixthree{\nusixthreecolorname}.}
+
+\notbeforenutachyon{Changes specific to the \NUTachyon upgrade
+are highlighted in \nutachyon{\nutachyoncolorname}.}
 
 All of these are also changes from \Zerocash.
 
@@ -3538,23 +3585,42 @@ coordinates (see \crossref{jubjub}).
 
 \lsubsection{Payment Addresses and Keys}{addressesandkeys}
 
-Users who wish to receive shielded payments in the \Zcash protocol must have a
+Users who wish to receive shielded payments in the \Zcash protocol
+\nutachyon{using \Sprout\sapling{, \Sapling}\nufive{, or \Orchard}} must have a
 \defining{\shieldedPaymentAddress, which is generated from a \spendingKey.}
 
 \introlist
 The following diagrams depict the relations between key
-components in \Sprout\sapling{ and \Sapling}\nufive{ and \Orchard}.
+components in \Sprout\sapling{ and \Sapling}\nufive{ and \Orchard}\nutachyon{ and \Tachyon}.
 Arrows point from a component to any other component(s) that can be derived
 from it. Double lines indicate that the same component is used in multiple
 abstractions.
 
-\readas{Image description: three diagrams showing the derivation of Sprout, Sapling, and Orchard key components.
+\readas{Image description: diagrams showing the derivation of shielded-protocol key components.
 The key components are shown by their mathematical abbreviations. They are collected into rounded boxes for each named
 abstraction, which are colour-coded from purple to green in the direction of derivation, or from more secret to
-less secret values. The information in the diagram is otherwise mostly redundant with the textual description
-of the key components and their derivation that follows it.}{\vspace{-2ex}\begin{center}
+less secret values. \notbeforenutachyon{The Tachyon diagram shows the master spending key sk feeding an HD wallet, which derives
+the spend authorization key ask and nullifier key nk. The key ask derives ak; the proof authorization key
+comprises ak and nk and derives the payment key pk. The diagram also shows the randomized spend validating key rk.}
+}{\vspace{-2ex}\begin{center}
+\notnutachyon{
 \notnufive{\includegraphics[scale=.5]{key_components_sapling}}
 \nufive{\includegraphics[scale=.385]{key_components_orchard\imagesuffix}}
+}
+\notbeforenutachyon{
+\begin{minipage}[t]{0.74\textwidth}
+\vspace{0pt}
+\notnufive{\includegraphics[width=\linewidth]{key_components_sapling}}
+\nufive{\includegraphics[width=\linewidth]{key_components_orchard\imagesuffix}}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.245\textwidth}
+\vspace{0pt}
+\centering
+{\small\bfseries\itshape \nutachyon{Tachyon}}\par
+\smallskip
+\includegraphics[width=\linewidth]{key_components_tachyon}
+\end{minipage}
+}
 \end{center}}
 
 \sproutspecific{
@@ -3602,12 +3668,27 @@ The derivations of $\AuthSignPrivate$ and $\CommitIvkRand$ shown are not the onl
 For further detail see \shortcrossref{orchardkeycomponents}.
 }} %notbeforenufive
 
+\notbeforenutachyon{\vspace{1ex}}
+\nutachyononward{
+A \Tachyon \spendingKey $\SpendingKey$ is used to derive a
+\authSigningKey $\AuthSignPrivate$ and a \authProvingKey $(\AuthSignPublic, \NullifierKey)$.
+From the \authProvingKey we can derive a \defining{\paymentKey $\PaymentKey$} (see \crossref{tachyonkeycomponents}).
+
+Unlike \Orchard, \Tachyon does not define \diversifiedPaymentAddresses or
+viewing keys in the shielded protocol. The \paymentKey is deterministic in $(\AuthSignPublic, \NullifierKey)$, so obtaining
+distinct payment keys requires distinct key pairs, rather than changing a
+\diversifier while retaining the same pair.
+} %nutachyononward
+
 \vspace{-2ex}
-\sapling{\nnote{Most \Zcash wallets derive \SaplingAndOrchard keys and addresses according to \cite{ZIP-32}.}}
+\nnote{
+\sapling{Most \Zcash wallets derive \SaplingAndOrchard keys and addresses according to \cite{ZIP-32}.}
+}
 
 \introlist
 \vspace{2ex}
-The composition of \shieldedPaymentAddresses, \incomingViewingKeys,
+\notnutachyon{The}\nutachyon{For \Sprout\sapling{, \Sapling}\nufive{, and \Orchard}, the}
+composition of \shieldedPaymentAddresses, \incomingViewingKeys,
 \sapling{\fullViewingKeys,} and \spendingKeys is a cryptographic protocol
 detail that should not normally be exposed to users. However, user-visible
 operations should be provided to obtain a
@@ -3652,8 +3733,9 @@ in order to exploit a hypothetical weakness in that cryptosystem.
 A \defining{\note} is a representation of value held in a \defining{\shieldedPool}.
 
 Each \shieldedPool operates according to the rules of a \shieldedProtocol, and has
-its own \treestate (see \crossref{transactions}). The currently deployed \shieldedPools
-are the \SproutPool\sapling{ and \SaplingLikePools}.
+its own \notnutachyon{\treestate}\nutachyon{\shieldedPoolState}
+(see \crossref{transactions}). The currently deployed \shieldedPools
+are the \SproutPool\sapling{ and \SaplingLikePools}\nutachyon{ and \TachyonPool}.
 
 Each \note (denoted $\NoteTuple{}$) belongs to one of these \shieldedPools.
 It represents that a value $\Value$ is spendable by the recipient who
@@ -3661,6 +3743,8 @@ holds the \spendingKey corresponding to a given \shieldedPaymentAddress.
 The form of a \shieldedPaymentAddress is defined by a \shieldedProtocol;
 it can be used to send funds represented by new \notes to the address, in
 the \shieldedPoolps supported by that protocol.
+\nutachyon{\Tachyon instead identifies the recipient by a \paymentKey, leaving address
+formats and \note transmission to higher-level payment protocols.}
 
 \nusixthreeonward{The \OrchardShieldedProtocol supports both the \OrchardPool and the
 \IronwoodPool. However, there are restrictions on sending to the \OrchardPool after
@@ -3691,6 +3775,13 @@ Let $\PRFnf{Orchard}{}$ be as defined in \crossref{concreteprfs}.
 
 Let $\ParamP{q}$ be as defined in \crossref{pallasandvesta}.
 } %nufive
+
+\nutachyon{
+Let $\NoteCommitAlg{Tachyon}$ be as defined in \crossref{concretetachyonnotecommit}.
+
+Let $\DeriveNoteMasterKey$ and $\PRFnf{Tachyon}{}$ be as defined in
+\crossref{concretetachyonprfs}.
+} %nutachyon
 
 \vspace{2ex}
 \introlist
@@ -3772,15 +3863,46 @@ Let $\NoteType{Orchard}$ be the type of an \OrchardLikePoolAdj \note, i.e.
 \end{formulae}
 } %nufive
 
+\nutachyon{
+\vspace{1ex}
+\introlist
+A \TachyonPoolAdj \note is a tuple
+$(\PaymentKey, \Value, \NoteNullifierRand, \NoteCommitRand)$, where:
+\begin{itemize}
+  \item $\PaymentKey \typecolon \GF{\ParamP{q}}$ is the recipient's \paymentKey;
+  \item $\Value \typecolon \range{0}{\MAXMONEY}$ is an integer
+        representing the value of the \note in \zatoshi;
+  \item $\NoteNullifierRand \typecolon \GF{\ParamP{q}}$ is a per-note nullifier trapdoor.
+        Together with the recipient's $\NullifierKey$, it is used by $\DeriveNoteMasterKey$
+        to derive a note master key $\NoteMasterKey \typecolon \GF{\ParamP{q}}$.
+        This key is used by $\PRFnf{Tachyon}{}$ to derive the \note's \nullifier for each epoch;
+  \item $\NoteCommitRand \typecolon \NoteCommitTrapdoor{Tachyon}$ is a random
+        \commitmentTrapdoor over $\GF{\ParamP{q}}$.
+\end{itemize}
+
+\introlist
+Let $\NoteType{Tachyon}$ be the type of a \TachyonPoolAdj \note, i.e.
+\begin{formulae}
+  \item $\NoteType{Tachyon} := \GF{\ParamP{q}} \times \range{0}{\MAXMONEY}
+           \times \GF{\ParamP{q}} \times \NoteCommitTrapdoor{Tachyon}$.
+\end{formulae}
+
+Unlike \Orchard, a \TachyonPoolAdj \note has no \diversifier,
+\diversifiedTransmissionKey, or $\NoteUniqueRand$ component.
+} %nutachyon
+
 \vspace{2ex}
 Creation of new \notes is described in \crossref{send}.
 
 \lsubsubsection{Note Plaintexts and Memo Fields}{noteptconcept}
 
-Transmitted \notes are stored on the \blockChain in encrypted form, together with
+Transmitted \notes\nutachyon{ in \Sprout, \Sapling, and \Orchard}
+are stored on the \blockChain in encrypted form, together with
 a representation of the \noteCommitment $\cm$ described in \crossref{notecommitmentconcept}.
+\nutachyon{\Tachyon does not require encrypted \notes to be published on the \blockChain.}
 
-A \notePlaintext also includes a $\MemoByteLength$-byte \defining{\memo} associated
+A\nutachyon{ \Sprout, \Sapling, or \Orchard} \notePlaintext also includes
+a $\MemoByteLength$-byte \defining{\memo} associated
 with this \note. The usage of the \memo is by agreement between the sender and recipient
 of the \note. \RECOMMENDED{} \nh{non-consensus} constraints on the \memo contents are specified
 in \cite{ZIP-302}.
@@ -3868,22 +3990,42 @@ The use of the field $\NoteSeedBytes$ is described in \cite{ZIP-212}.
 } %saplingonward
 
 \vspace{1.5ex}
-Encodings are given in \crossref{noteptencoding}.
+Encodings\nutachyon{ for these \notePlaintexts} are given in \crossref{noteptencoding}.
 The result of encryption forms part of a \noteOrNotesCiphertext.
-For further details, see \crossref{sproutinband}\sapling{ and \crossref{saplingandorchardinband}}.
+For further details, see \shortcrossref{sproutinband}\sapling{ and \shortcrossref{saplingandorchardinband}}.
+
+\notbeforenutachyon{\vspace{1.5ex}}
+\nutachyononward{
+\Tachyon does not prescribe a \notePlaintext encoding, a \notePlaintextLeadByte,
+or a fixed-size per-note \memo. A \Tachyon bundle can carry a variable-length opaque payment-protocol payload,
+which can be empty. Its contents may include encrypted \notes, but the shielded
+protocol does not interpret them or require a ciphertext for each created \note.
+} %nutachyononward
 
 \lsubsubsection{Note Commitments}{notecommitmentconcept}
 
-When a \note is created as an output of a \transaction, only a commitment (see
+\notnutachyon{
+When a \note is created as an output of a
+\transaction, only a commitment (see
 \crossref{abstractcommit}) to the \note contents is disclosed publically in the associated
 \joinSplitDescription\sapling{ or \outputDescription}\nufive{ or \actionDescription}. If the
 \transaction is entered into the \blockChain, each such \noteCommitment is appended to the
 \noteCommitmentTree of the associated \treestate.
+} %notnutachyon
+\nutachyon{
+When a \note is created as an output of a \transaction, a commitment (see
+\crossref{abstractcommit}) to its contents is disclosed publicly in the associated
+\joinSplitDescription (\Sprout), \outputDescription (\Sapling), or \actionDescription
+(\Orchard), or as a tachygram in the stamp covering its \tachyonActionDescription
+(\Tachyon; see \shortcrossref{tachyonactiondesc}). If the \transaction is entered into the
+\blockChain, each such \noteCommitment is incorporated into the associated \shieldedPoolState.
+} %nutachyon
 This allows the value and recipient to be kept private, while the commitment is
 used by the \zkSNARKProof when the \note is spent, to check that it exists
 on the \blockChain.
 
-\xTreestates are described in \crossref{transactions}, and \noteCommitmentTrees are described
+\notnutachyon{\xTreestates}\nutachyon{\xShieldedPoolStates}
+are described in \crossref{transactions}, and \noteCommitmentTrees are described
 in \crossref{notecommitmenttrees}.
 
 \introlist
@@ -3963,27 +4105,63 @@ An \OrchardLikePoolAdj \noteCommitment is represented in an \actionDescription b
 $x$-coordinate of a \Pallas curve point, as specified in \crossref{actiondesc}.
 } %nufive
 
+\nutachyon{
+\introlist
+\vspace{1.5ex}
+A \TachyonPoolAdj{} \defining{\noteCommitment} on a \note
+$\NoteTuple{} = (\PaymentKey, \Value, \NoteNullifierRand, \NoteCommitRand)$ is computed as
+
+\vspace{-1ex}
+\begin{formulae}
+  \item $\NoteCommitment{Tachyon}(\NoteTuple{}) :=
+          \NoteCommit{Tachyon}{\NoteCommitRand}(\PaymentKey, \Value, \NoteNullifierRand)$,
+\end{formulae}
+\vspace{-2.5ex}
+where $\NoteCommitAlg{Tachyon}$ is instantiated using Poseidon in
+\crossref{concretetachyonnotecommit}.
+
+The commitment is an element of the \Pallas base field $\GF{\ParamP{q}}$.
+Its computation does not depend on the \note's position in the pool history.
+It is published as a tachygram in the covering stamp, rather than encoded in the
+\tachyonActionDescription (see \shortcrossref{tachyonactiondesc}).
+} %nutachyon
+
 \lsubsubsection{Nullifiers}{nullifierconcept}
 
-The \nullifier for a \note, denoted $\nf$, is a value unique to the \note that is used
+The \nullifier for a \note\nutachyon{ in \Sprout, \Sapling, or \Orchard}, denoted $\nf$,
+is a value unique to the \note that is used
 to prevent \doubleSpends. When a \transaction that contains one or more
 \joinSplitDescriptions\sapling{ or \spendDescriptions}\nufive{ or \actionDescriptions} is
 entered into the \blockChain, all of the \defining{\nullifiers} for \notes spent by that
 \transaction are added to the \nullifierSet of the associated \treestate. A \transaction
 is not valid if it would have added a \nullifier to the \nullifierSet that already exists
 in the set.
-
 \xTreestates are described in \crossref{transactions}, and \nullifierSets are described
 in \crossref{nullifierset}.
+
+\nutachyon{
+Transactions containing one or more \tachyonActionDescriptions publish the \nullifiers
+of spent \notes as tachygrams in their covering stamps. These are
+\defining{\evolvingNullifiers}: each \note has a deterministic \nullifier for each epoch,
+and a spend publishes those for the stamp's \anchor epoch and the following epoch.
+Validators reject duplicates within the \block and against tachygrams retained from
+the current and immediately preceding epochs (see \shortcrossref{tachyonpoolstates}).
+Accompanying recursive proofs establish exclusion of the \note's corresponding
+\nullifiers from earlier accumulator states, covering epochs from note creation up to,
+but not including, the \anchor's epoch (see \shortcrossref{tachyonprooftree}).
+}
 
 \vspace{1.5ex}
 In more detail, when a \note is spent, the spender creates a \zeroKnowledgeProof that
 it knows $(\NoteUniqueRand, \AuthPrivate)$\sapling{ or $(\NoteUniqueRand, \AuthSignPublic,
-\AuthProvePrivate)$}\nufive{ or $(\NoteUniqueRand, \AuthSignPublic, \NullifierKey)$},
-consistent with the publically disclosed \nullifier and some previously committed
+\AuthProvePrivate)$}\nufive{ or $(\NoteUniqueRand, \AuthSignPublic, \NullifierKey)$}%
+\nutachyon{ or $(\NoteNullifierRand, \AuthSignPublic, \NullifierKey)$},
+consistent with the publically disclosed \notnutachyon{\nullifier}\nutachyon{\nullifiers}
+and some previously committed
 \noteCommitment.
 
-Because each \note can have only a single \nullifier, and the same \nullifier value
+Because each \note\nutachyon{ in \Sprout, \Sapling, or \Orchard} can have only a single
+\nullifier, and the same \nullifier value
 cannot appear more than once in a \validBlockChain, \doubleSpending is prevented.
 
 \vspace{1.5ex}
@@ -4001,8 +4179,15 @@ $\NoteNullifierRand$ values, the recipient's \nullifierDerivingKey $\NullifierKe
 and the \noteCommitment.
 }
 
+\nutachyon{
+The \nullifier for a \TachyonPoolAdj \note in a given epoch is derived from the epoch
+index and a note master key $\NoteMasterKey$, which is derived from the \note's
+$\NoteNullifierRand$ and the recipient's \nullifierDerivingKey $\NullifierKey$.
+}
+
 The \nullifier computation uses a \pseudoRandomFunction (see \crossref{abstractprfs}),
-as described in \crossref{rhoandnullifiers}.
+as described in \crossref{rhoandnullifiers}\nutachyon{ for \Sprout, \Sapling, and
+\Orchard, and in \crossref{concretetachyonprfs} for \Tachyon}.
 
 
 \lsubsection{The Block Chain}{blockchain}
@@ -4052,7 +4237,7 @@ and \zebra this limit is $100$ \blocks.
 
 
 \vspace{-1ex}
-\lsubsection{Transactions and Treestates}{transactions}
+\lsubsection{Transactions and \notnutachyon{Treestates}\nutachyon{Shielded Pool States}}{transactions}
 
 Each \block contains one or more \defining{\transactions}.
 
@@ -4099,6 +4284,19 @@ The remaining value in the \transparentTxValuePool \MUST be nonnegative.
 }
 \vspace{2ex}
 
+\nutachyon{
+A \defining{\shieldedPoolState} records the publication of \noteCommitments and
+the data used to prevent \doubleSpends. Its representation and update rules depend on
+the \shieldedProtocol. For \Sprout, \Sapling, and \Orchard, this state is called a
+\treestate; \Tachyon uses the accumulator-based state described in \shortcrossref{tachyonpoolstates}.
+
+An \defining{\anchor} is a cryptographic commitment used to reference prior pool state.
+Its construction and permitted reference points depend on the \shieldedProtocol.
+
+\introsection
+\lsubsubsection{Treestates (\SproutText, \SaplingText, and \OrchardText)}{treestates}
+} %nutachyon
+
 \introlist
 To each \transaction there are associated initial \defining{\treestates}
 for the \SproutPool\sapling{ and \SaplingLikePools}. \sapling{Each} \treestate consists of:
@@ -4112,7 +4310,8 @@ for the \SproutPool\sapling{ and \SaplingLikePools}. \sapling{Each} \treestate c
 Validation state associated with \transparent inputs and outputs, such as the \utxoSetFull,
 is not described in this document; it is used in essentially the same way as in \Bitcoin.
 
-An \defining{\anchor} is a Merkle tree root of one of these \noteCommitmentTrees. It
+\notnutachyon{An \defining{\anchor} is}\nutachyon{For these pools, an \anchor is}
+a Merkle tree root of one of these \noteCommitmentTrees. It
 uniquely identifies a \noteCommitmentTree state given the assumed security properties of
 the Merkle tree's \hashFunction. Since the \nullifierSet is always updated together with
 the \noteCommitmentTree, this also identifies a particular state of the associated
@@ -4136,6 +4335,33 @@ In a given \blockChain, for \sapling{each of} the \SproutPool\sapling{ and \Sapl
 \joinSplitDescriptions also have interstitial input and output
 \treestates for the \SproutPool, explained in the following section.
 \sapling{There is no equivalent of interstitial \treestates for \TheSaplingLikePoolsNegative.}
+
+\nutachyon{
+\introsection
+\lsubsubsection{Shielded Pool State (\TachyonText)}{tachyonpoolstates}
+} %nutachyon
+
+\nutachyononward{
+The \TachyonPool's \defining{\tachygramAccumulator} is a hash chain of tachygram
+multiset commitments (see \shortcrossref{concretetachyonmultisetcommit}). Published tachygrams comprise
+\noteCommitments, \nullifiers, and padding values, which
+consensus treats identically.
+
+Blocks are grouped into fixed-length epochs starting at activation.
+Each proof-bearing stamp advances the hash chain exactly once by incorporating
+its tachygram multiset commitment, in \transaction order within a \block.
+A stamp may cover actions from multiple \transactions. Epoch transitions also
+advance the hash chain. Initialization and updates are specified in
+\shortcrossref{tachyonstateupdates}.
+
+A \Tachyon \anchor is the hash-chain value at an accepted end-of-block pool state
+(see \shortcrossref{tachyonstateconsensus} for validity conditions).
+
+Each \fullValidator retains tachygrams published in the current and immediately
+preceding epochs for duplicate checks. Older tachygrams can be pruned from this set;
+recursive proofs establish historical nullifier exclusion
+(see \shortcrossref{tachyonprooftree}).
+} %nutachyononward
 
 
 \lsubsection{JoinSplit Transfers and Descriptions}{joinsplit}
@@ -4309,6 +4535,38 @@ the same \transaction.
 } %nufive
 
 
+\nutachyon{
+\introsection
+\lsubsection{\TachyonText{} Action Descriptions}{tachyonactions}
+
+A \Tachyon action spends one existing \note or creates one new \note in the
+\TachyonPool. \defining{\tachyonActionDescriptions} are data included in a
+\transaction that describe these actions. Spends and outputs use the same public
+representation, with no spend/output discriminator.
+
+Each \tachyonActionDescription contains a \xPedersenValueCommitment and a randomized
+action verification key, with an associated authorization signature (see
+\shortcrossref{tachyonactiondesc} and \shortcrossref{tachyonactionauth}). The
+\valueCommitment commits to the spent \note's value for a spend, or the negation of
+the created \note's value for an output.
+
+A \transaction contains a sequence of \tachyonActionDescriptions. A
+\bindingSignature proves that the sum of their \valueCommitments is consistent
+with the \transaction's declared \TachyonPoolAdj value balance, equal to the total
+value spent minus the total value created in that pool.
+
+Each action contributes two tachygrams to its covering stamp: a spend contributes
+the two epoch-specific \nullifiers described in \shortcrossref{nullifierconcept},
+and an output contributes its \noteCommitment and a padding tachygram. A
+proof-bearing stamp contains an \anchor, the published tachygrams, and a recursive
+\zeroKnowledgeProof that binds them to the covered \tachyonActionDescriptions and
+enforces the corresponding spend or output constraints (see
+\shortcrossref{tachyonprooftree}). A stamp may cover actions from multiple
+\transactions; their descriptions and signatures remain in their respective
+\transactions.
+} %nutachyon
+
+
 \introsection
 \extralabel{merkletree}{\lsubsection{Note Commitment Trees}{notecommitmenttrees}}
 
@@ -4330,7 +4588,8 @@ However, unlike the \utxoSet, it is \emph{not} the job of this tree to protect a
 \doubleSpending, as it is append-only.
 
 A \defining{\merkleRoot} of a \noteCommitmentTree is associated with the \treestate
-(\crossref{transactions}) for each \shieldedPool.
+(\crossref{transactions}) for \notnutachyon{each \shieldedPool}%
+\nutachyon{the \SproutPool and \SaplingLikePools}.
 
 Each \defining{\merkleNode} in the \incrementalMerkleTree is associated with
 a \defining{\merkleHash} of size $\MerkleHashLength{Sprout}$\sapling{ or
@@ -4361,6 +4620,9 @@ is called its \defining{\notePosition}.
 
 \vspace{-2ex}
 \lsubsection{Nullifier Sets}{nullifierset}
+
+\nutachyon{This section applies to pools using \Sprout, \Sapling, and \Orchard.
+For \Tachyon, see \shortcrossref{tachyonpoolstates}.}
 
 Each \fullValidator maintains a \defining{\nullifierSet} logically associated with the
 \treestate for each \shieldedPool. As valid \transactions containing \joinSplitTransfers\sapling{ or
@@ -5914,6 +6176,14 @@ The \diversifiedPaymentAddress with \diversifierIndex $0$ is called the \definin
 } %nufive
 
 
+\nutachyon{
+\introsection
+\lsubsubsection{\TachyonText{} Key Components}{tachyonkeycomponents}
+
+\todo{Specify key-component types, derivation, and payment-key construction.}
+} %nutachyon
+
+
 \lsubsection{JoinSplit Descriptions}{joinsplitdesc}
 
 A \joinSplitTransfer, as specified in \crossref{joinsplit}, is encoded in
@@ -6290,6 +6560,32 @@ encoded in the $\proofsField{\OrchardLike}$ field.}
         they are only checked to encode integers in $\range{0}{\ParamP{q}-1}$.
 \end{nnotes}
 } %nufive
+
+
+\nutachyon{
+\introsection
+\lsubsection{Action Descriptions (\TachyonText)}{tachyonactiondesc}
+
+\Tachyon Action descriptions are introduced in \shortcrossref{tachyonactions}.
+
+\todo{Specify the field types and encoding of the value commitment and randomized
+action verification key, the associated authorization signature, and the relationship
+to the covering stamp and its tachygrams. Signature derivation and verification are
+specified in \shortcrossref{tachyonactionauth}.}
+} %nutachyon
+
+
+\nutachyon{
+\introsection
+\lsubsection{Pool State Updates (\TachyonText)}{tachyonstateupdates}
+
+\todo{Specify the types of the pool-state components, initialization at activation,
+and epoch-index and boundary calculations from block height and the epoch-length
+constant in \shortcrossref{constants}. Define ordered state updates for stamps,
+blocks, and epoch transitions, including the logical tachygram set used for duplicate
+checks. Use the hash-chain operations instantiated in
+\shortcrossref{concretetachyonhashchain}.}
+} %nutachyon
 
 
 \vspace{-2.5ex}
@@ -7505,6 +7801,15 @@ and decrypt incoming \notes. However, the other party will not obtain \spendingA
 } %sapling
 
 
+\nutachyon{
+\introsection
+\lsubsection{Action Authorization (\TachyonText)}{tachyonactionauth}
+
+\todo{Specify note-bound randomizer derivation, action signing keys, and signature
+verification for spends and outputs.}
+} %nutachyon
+
+
 \intropart
 \extralabel{commitmentsandnullifiers}{\lsubsection{Computing \NoteUniqueRandText{} values and Nullifiers}{rhoandnullifiers}}
 
@@ -8209,6 +8514,18 @@ verification is in \crossref{actiondesc}.
         \pallasCurve, then finding such a case is infeasible.
 \end{nnotes}
 } %nufive
+
+
+\nutachyon{
+\introsection
+\lsubsubsection{Proof Tree (\TachyonText)}{tachyonprooftree}
+
+\todo{Specify the recursive proof statements and their composition, including note
+membership, epoch-specific nullifier derivation and exclusion from prior pool states,
+and the binding of actions and tachygrams to stamps using the multiset commitments
+in \shortcrossref{concretetachyonmultisetcommit}. Specify which epochs are covered by
+exclusion proofs and which are checked directly by validators.}
+} %nutachyon
 
 
 \vspace{-2.5ex}
@@ -9047,6 +9364,11 @@ Define:
   \item $\PostBlossomPoWTargetSpacing \typecolon \Nat := 75$ (seconds).
 } %blossom
 \end{formulae}
+
+
+\nutachyon{
+\todo{Specify the Tachyon epoch-length constant, including its type and value in blocks.}
+} %nutachyon
 
 
 \introsection
@@ -10074,6 +10396,18 @@ $n = 200$).
 }
 
 
+\nutachyon{
+\introsection
+\lsubsubsubsection{Accumulator Hash Chain (\TachyonText)}{concretetachyonhashchain}
+
+\todo{Specify the hash-chain state type and initial value, and the hash functions
+for incorporating a stamp's tachygram multiset commitment and advancing an epoch.
+Include the exact hash inputs, their order and encodings, domain separation, and
+hash parameters. The multiset commitment construction is specified in
+\shortcrossref{concretetachyonmultisetcommit}.}
+} %nutachyon
+
+
 \introsection
 \lsubsubsection{Pseudo Random Functions}{concreteprfs}
 
@@ -10312,6 +10646,16 @@ PRF when keyed by its first argument, with its second argument as input.
   \item See \crossref{poseidonhash} for further security discussion of how \Orchard uses $\Poseidon$.
 \end{nnotes}
 } %nufive
+
+\nutachyon{
+\introsection
+\lsubsubsubsection{Pseudo Random Functions (\TachyonText)}{concretetachyonprfs}
+
+\todo{Specify $\DeriveNoteMasterKey$, deriving $\NoteMasterKey$ from $\NullifierKey$
+and $\NoteNullifierRand$, and $\PRFnf{Tachyon}{\NoteMasterKey}$, deriving a nullifier
+for an epoch. Include their types, domain separation, Tachyon Poseidon sponge
+parameters, and the selection of an epoch's nullifier from a group of sponge outputs.}
+} %nutachyon
 
 
 \introsection
@@ -11332,6 +11676,26 @@ is not square in $\GF{\ParamP{q}}$.
 \end{nnotes}
 } %nufive
 
+
+\nutachyon{
+\introsection
+\lsubsubsubsection{Note Commitments (\TachyonText)}{concretetachyonnotecommit}
+
+\todo{Specify $\NoteCommitAlg{Tachyon}$, committing to
+$(\PaymentKey, \Value, \NoteNullifierRand)$ with trapdoor $\NoteCommitRand$.
+Include its types, the trapdoor domain and generation, Tachyon Poseidon sponge
+parameters and domain separation, and handling of a zero commitment.
+Resolve whether zero is excluded from $\NoteCommitTrapdoor{Tachyon}$.}
+} %nutachyon
+
+\nutachyon{
+\introsection
+\lsubsubsubsection{Multiset Commitments (\TachyonText)}{concretetachyonmultisetcommit}
+
+\todo{Specify the multiset commitment scheme used for tachygrams and action digests.
+Include the input and output types, polynomial representation, commitment construction
+and parameters, and canonical encoding.}
+} %nutachyon
 
 \introsection
 \lsubsubsection{Represented Groups and Pairings}{concretepairing}
@@ -13282,11 +13646,15 @@ and \cite{ZIP-2006}, with updates to \cite{ZIP-209} and \cite{ZIP-317}. Addition
 and rationale is given in \cite{ZODL-Ironwood}. Specifications relating to wallet support and
 migration to the \IronwoodPool are in \cite{ZIP-318} and \cite{ZIP-326}.}
 
+\nutachyon{The \defining{\NUTachyon} \networkUpgrade introduces the \Tachyon shielded protocol.
+\todo{Specify activation parameters for \NUTachyon.}}
+
 \introlist
 \vspace{1.5ex}
 This section summarizes the strategy for upgrading from the Sprout epoch to subsequent epochs
 of the protocol (\NUOverwinter, \NUSapling, \NUBlossom, \NUHeartwood, \NUCanopy, \NUFive, \NUSix,
-\NUSixOne, \NUSixTwo, and \NUSixThree), and for future upgrades.
+\NUSixOne, \NUSixTwo, \notnutachyon{and }\NUSixThree\nutachyon{, and \NUTachyon}),
+and for future upgrades.
 
 \defining{The \networkUpgrade mechanism is described in \cite{ZIP-200}.}
 
@@ -13763,7 +14131,9 @@ of the \transaction encoding in the \notbeforenufive{pre-v5} format described ab
   \nufiveonwarditem{\valueBalance{Orchard}, if it exists, \MUST be in the range $\range{-\MAXMONEY}{\MAXMONEY}$.}
   \nusixthreeonwarditem{\valueBalance{Ironwood}, if it exists, \MUST be in the range $\range{-\MAXMONEY}{\MAXMONEY}$.}
   \heartwoodonwarditem{All \SaplingLikePoolsAdj outputs in \coinbaseTransactions \MUST decrypt to a
-        \notePlaintext, i.e.\ \crossref{decryptovk} does not return $\bot$, using
+        \notePlaintext, i.e.\
+        \notnutachyon{\crossref{decryptovk}}\notbeforenutachyon{\shortcrossref{decryptovk}}
+        does not return $\bot$, using
         a sequence of $32$ zero bytes as the \outgoingViewingKey. (This implies that\canopy{ before
         \NUCanopy activation,} \SaplingPoolAdj outputs of a \coinbaseTransaction \MUST have \notePlaintextLeadByte
         equal to $\hexint{01}$.)}
@@ -13890,6 +14260,17 @@ The changes relative to \Bitcoin version 1 \transactions as described in \cite{B
   \item A consensus rule limiting \transaction size has been added. In \Bitcoin there is
         a corresponding standard rule but no consensus rule.
 \end{itemize}
+
+\nutachyon{
+\introsection
+\lsubsubsubsection{Pool State Consensus Rules (\TachyonText)}{tachyonstateconsensus}
+
+\todo{Specify permitted stamp anchors relative to the containing block and epoch,
+and rejection of duplicate tachygrams within a block and against the applicable
+two-epoch set. Define validation and state-update ordering using
+\shortcrossref{tachyonstateupdates}.}
+} %nutachyon
+
 
 \introsection
 \extralabel{joinsplitencoding}{\lsubsection{JoinSplit Description Encoding and Consensus}{joinsplitencodingandconsensus}}
@@ -15924,6 +16305,41 @@ Peter Newell's illustration of the Jubjub bird, from \cite{Carroll1902}.
 \intropart
 \lsection{Change History}{changehistory}
 
+\nutachyon{
+\historyentry{Unreleased}{}
+
+\begin{itemize}
+    \item Define the \NUTachyon upgrade and its specification build target.
+    \item Add the Tachyon key-derivation diagram alongside the existing key-component
+          diagrams in \shortcrossref{addressesandkeys}, and introduce \nutachyoncolorname{}
+          highlighting for \NUTachyon additions.
+    \item Describe Tachyon key components, note-bound key randomization, and the
+          separation of payment protocols from the shielded protocol in \shortcrossref{addressesandkeys},
+          with placeholders in \shortcrossref{tachyonkeycomponents} and \shortcrossref{tachyonactionauth}.
+    \item Add the Tachyon pool and note tuple to \shortcrossref{notes}, with placeholders
+          for note commitments and nullifier derivation in
+          \shortcrossref{concretetachyonnotecommit} and \shortcrossref{concretetachyonprfs}.
+    \item Clarify in \shortcrossref{noteptconcept} that Tachyon leaves note plaintext
+          and memo formats to payment protocols and does not require on-chain note ciphertexts.
+    \item Distinguish Tachyon note-commitment publication in \shortcrossref{notecommitmentconcept}
+          and add a placeholder for Tachyon Action descriptions in \shortcrossref{tachyonactiondesc}.
+    \item Define the Tachyon note commitment in \shortcrossref{notecommitmentconcept},
+          linking to its concrete-construction placeholder in \shortcrossref{concretetachyonnotecommit}.
+    \item Add Tachyon's evolving nullifiers and proof inputs to \shortcrossref{nullifierconcept},
+          linking historical exclusion to the proof-tree placeholder in \shortcrossref{tachyonprooftree}.
+    \item Introduce shielded pool states in \shortcrossref{transactions}, retaining
+          treestates for the existing pools and distinguishing Tachyon's accumulator-based
+          state and anchors in \shortcrossref{tachyonpoolstates}.
+    \item Add a placeholder for Tachyon multiset commitments in
+          \shortcrossref{concretetachyonmultisetcommit}, referenced by pool state and proof statements.
+    \item Add placeholders for Tachyon state transitions, epoch length,
+          hash-chain construction, and consensus checks.
+    \item Introduce Tachyon Action descriptions, value balance, and their relationship
+          to stamps in \shortcrossref{tachyonactions}.
+\end{itemize}
+} %nutachyon
+
+
 \historyentry{2026.7.0}{2026-07-05}
 
 \begin{itemize}
@@ -16579,7 +16995,9 @@ Peter Newell's illustration of the Jubjub bird, from \cite{Carroll1902}.
 \sapling{
     \item Correct $l$ to $\layerRepr$ in two places in \crossref{saplingmerklecrh}.
 } %sapling
-    \item Correct an erroneous statement in \crossref{transactions} that claimed
+    \item Correct an erroneous statement in
+          \notnutachyon{\crossref{transactions}}\notbeforenutachyon{\shortcrossref{transactions}}
+          that claimed
           \transactionIDs are not part of the consensus protocol.
 \end{itemize}
 
