@@ -121,7 +121,7 @@ before activation. See
 
 Nodes MUST apply ZIP 209's non-negativity and total-supply checks with the Tachyon
 pool included.[^zip-0209] Proof aggregation does not merge value balances: each
-bundle's value balance contributes once, whether it carries a proof or is stripped.
+bundle's value balance contributes once, whether it carries a proof or a pointer.
 
 
 ### Chain history commitment
