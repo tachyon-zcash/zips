@@ -81,12 +81,14 @@ commitments and nullifiers, referring to both as _tachygrams_.
 
 A tachygram is a Pallas base-field element representing a note commitment, a
 nullifier, or a padding value. A spend contributes nullifiers for its epoch and
-the next; an output contributes a note commitment and a padding tachygram to the stamp's tachygram multiset. Both
+the next; an output contributes a note commitment and a padding tachygram to its transaction's tachygrams. Both
 action types contribute exactly two values, so the tachygram count alone does not
 reveal the split between spends and outputs.
 
-Tachygrams are published as an untyped multiset. The zero-knowledge proof enforces
-their correct derivation and association with the covered actions.
+Each transaction publishes its own tachygrams as an untyped pair per action,
+retaining them through aggregation and stripping. The zero-knowledge proof binds
+each pair to its action through the [action digest](draft-tachyon-bundle-format.md#actiondigests)
+and enforces their correct derivation.
 Consensus therefore need not distinguish note commitments from nullifiers or
 padding: it verifies the proof and applies the same duplicate-rejection
 rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
@@ -94,19 +96,19 @@ rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
 
 ## Stamp
 
-A stamp packages a recursive zero-knowledge proof, a pool-state anchor, and the
-[tachygrams](#tachygrams) associated with the actions it covers. The anchor
+A stamp packages a recursive zero-knowledge proof, a pool-state anchor, and a
+commitment to the [tachygrams](#tachygrams) associated with the actions it covers. The anchor
 identifies the pool state referenced by the proof. The proof binds the covered
 actions to the tachygrams and establishes the corresponding note-creation or
 spendability statements.[^protocol-tachyon-stamp-verification]
 
 A stamp can cover actions from a single transaction or aggregate actions from
 multiple transactions. [Aggregation](#prooftree) replaces
-the input stamps with a single stamp, while the actions and their signatures
+the input stamps with a single stamp, while the actions, signatures, and tachygrams
 remain in their respective transactions.[^tachyon-proof-tree]
 The bundle-format ZIP specifies how
-[pointer stamps](draft-tachyon-bundle-format.md#pointerstamp) reference the covering
-transaction and how [block validation](draft-tachyon-bundle-format.md#blockvalidity)
+[proof stamps](draft-tachyon-bundle-format.md#proofstamp) list covered transaction
+txids and how [block validation](draft-tachyon-bundle-format.md#blockvalidity)
 checks complete coverage.
 
 
@@ -214,7 +216,7 @@ The principal changes are:
   spend, the randomized spend-validating key
   $\mathsf{rk} = \mathsf{ak} + [\alpha]\mathcal{G}$ therefore binds the action's
   signed effecting data to the underlying note, even though its tachygrams are
-  carried separately in the stamp.[^tachyon-action-authorization]
+  carried separately in its own bundle's stamp trailer.[^tachyon-action-authorization]
 - The recipient is represented by a field-element payment key $\mathsf{pk}$,
   derived from $\mathsf{ak}$ and $\mathsf{nk}$ using domain-separated Poseidon,
   in place of Orchard's diversifier and diversified transmission key.
@@ -281,8 +283,7 @@ the checks on individual bundles.
 ### Per-bundle checks
 
 The bundle-format ZIP's [Bundle validity](draft-tachyon-bundle-format.md#bundlevalidity)
-rules apply to every bundle, whether it carries a stamp or refers to a stamp in
-another transaction. In summary:
+rules apply to every bundle, whether it carries a proof or is stripped. In summary:
 
 - Bundle fields have canonical encodings and satisfy their type and range
   constraints. Each action's value commitment and authorization key are
@@ -304,23 +305,28 @@ section specifies block-scoped coverage and proof-verification procedures.
 The anchor, epoch-window, and accumulator rules below additionally depend on chain
 state.
 
-- Each stamp's declared coverage matches the actions in its own bundle and all
-  bundles referring to it. Those references resolve to a proof-bearing bundle in
-  the same block, the covered action descriptors are distinct, and the stamp
-  publishes exactly two tachygrams per covered action.
+- Each proof stamp covers its own bundle and the stripped bundles named by its
+  txid list in the same block. Every stripped bundle is listed exactly once.
+  Covered action descriptors are distinct, and each bundle publishes exactly
+  two tachygrams per action.
 - Each stamp proof verifies against its anchor and the multiset commitments
   reconstructed from the covered action digests and published tachygrams.
 - Each stamp anchor identifies an accepted end-of-block pool state in the
   epoch of the block being validated or the immediately preceding epoch.
-- A stamp's tachygrams are distinct from one another, from those of every other
-  stamp in the block, and from tachygrams published in earlier blocks of the
+- Tachygrams from all bundles, including stripped bundles, are distinct within
+  the block and from tachygrams published in earlier blocks of the
   current or immediately preceding epoch. This check treats note commitments,
   nullifiers, and padding identically.
-- Each stamp advances the pool-state accumulator in transaction order, with
+- Each proof stamp advances the pool-state accumulator once with its covered
+  tachygram union, in transaction order, with
   epoch transitions incorporated as specified under
   [Tachygram accumulator](#tachygramaccumulator).
 
 # Privacy and Security Implications
+
+Each action's tachygram pair is public. Comparing versions across epochs can
+distinguish spends, whose nullifiers change, from outputs, whose tachygrams remain
+unchanged.[^tachyon-tachygrams]
 
 Confidential note transmission, recipient authentication, and note discovery are
 responsibilities of the chosen payment protocol. On-chain payloads are publicly
@@ -399,7 +405,7 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 
 [^tachyon-key-derivation]: [Tachyon reference implementation: Key derivation](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/keys/private.rs)
 
-[^tachyon-tachygrams]: [The Tachyon Book: Tachygrams](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/tachygrams.md)
+[^tachyon-tachygrams]: [The Tachyon Book: Tachygrams](https://github.com/tachyon-zcash/tachyon/blob/e6bcdf1de9c59758191f2c2fcfbf0bbb36cd3b32/book/src/tachygrams.md)
 
 [^tachyon-nullifiers]: [The Tachyon Book: Nullifiers](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/nullifiers.md)
 
