@@ -54,6 +54,10 @@ ZIP. This separation permits note transmission and discovery to evolve
 independently of consensus, including approaches that avoid scanning every
 transaction. [^tachyon-payment-protocols]
 
+Tachyon introduces [dynamic fees](#dynamicfees), allowing a prover to adjust fees
+to network conditions within a wallet-authorized maximum without obtaining new
+transaction signatures, including from an offline signing device.
+
 # Specification
 
 The Tachyon protocol MUST be implemented as specified in the Zcash Protocol
@@ -83,10 +87,11 @@ A tachygram is a Pallas base-field element representing a note commitment, a
 nullifier, or a padding value. A spend contributes nullifiers for its epoch and
 the next; an output contributes a note commitment and a padding tachygram to the stamp's tachygram multiset. Both
 action types contribute exactly two values, so the tachygram count alone does not
-reveal the split between spends and outputs.
+reveal the split between spends and outputs. Each covered bundle also contributes
+one [fee change note commitment](#dynamicfees).
 
 Tachygrams are published as an untyped multiset. The zero-knowledge proof enforces
-their correct derivation and association with the covered actions.
+their correct derivation and association with the covered actions and fees.
 Consensus therefore need not distinguish note commitments from nullifiers or
 padding: it verifies the proof and applies the same duplicate-rejection
 rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
@@ -95,10 +100,11 @@ rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
 ## Stamp
 
 A stamp packages a recursive zero-knowledge proof, a pool-state anchor, and the
-[tachygrams](#tachygrams) associated with the actions it covers. The anchor
+[tachygrams](#tachygrams) associated with the actions and [fees](#dynamicfees) it
+covers. It also carries the actual fee of the bundle containing it. The anchor
 identifies the pool state referenced by the proof. The proof binds the covered
-actions to the tachygrams and establishes the corresponding note-creation or
-spendability statements.[^protocol-tachyon-stamp-verification]
+actions and fee descriptors to the tachygrams and establishes the corresponding
+note-creation, spendability, and fee-change statements.[^protocol-tachyon-stamp-verification]
 
 A stamp can cover actions from a single transaction or aggregate actions from
 multiple transactions. [Aggregation](#prooftree) replaces
@@ -131,13 +137,15 @@ specialized proof-carrying data (PCD) steps. Each step enforces its own constrai
 
 Spend proofs combine evidence of note creation, correct per-epoch nullifier
 derivation, and continued unspentness up to an anchor. Separate output steps prove
-correct construction of new notes. Both branches produce stamp proofs whose
-headers bind an anchor and commitments to the action-digest and tachygram
-multisets. Tachygrams comprise nullifiers, note commitments, and padding values.
+correct construction of new notes. The action proofs are combined at a common
+anchor before applying the [dynamic fee mechanism](#dynamicfees) to produce a
+stamp. Its header binds an anchor and multiset commitments to the action and fee
+digests and to the tachygrams.
 
-Stamps at a common anchor can be merged recursively, first to cover a transaction's
-actions and then to aggregate independently constructed transactions. Before merging, anyone with the published transaction and chain data (likely a miner or other aggregator) can use anchor-chain proofs to lift stamps to a later anchor within the same spending epoch, enabling them to be merged during aggregation. Validators check the resulting proof against commitments reconstructed from the
-covered actions and published tachygrams, and check the anchor against chain state.
+Stamps at a common anchor can be merged recursively to aggregate independently
+constructed transactions. Before merging, anyone with the published transaction and chain data (likely a miner or other aggregator) can use anchor-chain proofs to lift stamps to a later anchor within the same spending epoch, enabling them to be merged during aggregation. Validators check the resulting proof against commitments reconstructed from the
+covered actions, fee descriptors, and published tachygrams, and check the anchor
+against chain state.
 
 - PCD step statements and composition rules: [^protocol-tachyon-proof-tree]
 - Stamp public inputs and verification: [^protocol-tachyon-stamp-verification]
@@ -159,8 +167,8 @@ For the note structure and Poseidon note commitment, see
 
 Tachyon uses deterministic Pedersen polynomial commitments on Vesta for
 action-digest and tachygram multisets. A multiset of Pallas base-field elements is
-encoded by taking its members as the roots of a monic polynomial. For action
-digests $d_i$ and tachygrams $t_j$:
+encoded by taking its members as the roots of a monic polynomial. For action and
+[fee](#dynamicfees) digests $d_i$ and tachygrams $t_j$:
 
 $$A(X) = \prod_i \bigl(X - d_i\bigr) \qquad
 T(X) = \prod_j \bigl(X - t_j\bigr)$$
@@ -270,6 +278,29 @@ Nullifier derivation and its proof constraints MUST be implemented as specified
 in the Zcash Protocol Specification.[^protocol-tachyon-nullifiers]
 
 
+## Dynamic fees
+
+Each bundle authorizes a maximum fee through a signed value commitment to a
+_max fee note_. The commitment binds the maximum amount and the payment key and
+other fields used for fee change. The max fee note is never published as a
+spendable note.
+
+A prover chooses an actual fee between zero and the maximum, and creates a
+_fee change note_ by subtracting that fee from the max fee note's value while
+retaining its other fields. The change note's commitment is published as a
+tachygram, even when its value is zero. Changing the fee requires a new stamp
+proof but no new transaction signatures.
+
+The stamp covers a _fee descriptor_ comprising the maximum-fee value commitment
+and actual fee for each covered bundle. Its proof enforces the fee range and
+correct construction of the change note. The signed value balance counts the
+maximum fee as an output; adding the actual fee gives the bundle's net pool
+outflow. A bundle with no actions has zero maximum and actual fees.[^tachyon-fees]
+
+The dynamic fee mechanism MUST be implemented as specified in the Zcash Protocol
+Specification.[^protocol-tachyon-fees]
+
+
 ## Consensus rules
 
 Tachyon consensus validation MUST be implemented as specified in the Zcash
@@ -286,11 +317,12 @@ another transaction. In summary:
 
 - Bundle fields have canonical encodings and satisfy their type and range
   constraints. Each action's value commitment and authorization key are
-  non-identity Pallas points. A bundle with no actions has zero value balance.
+  non-identity Pallas points, as is the maximum-fee value commitment. A bundle
+  with no actions has zero value balance and zero maximum and actual fees.
 - Every action signature and the bundle's binding signature verify over the
   containing transaction's signature hash. The binding signature enforces
-  consistency between the action value commitments and the declared value
-  balance.
+  consistency between the action value commitments, the maximum-fee value
+  commitment, and the declared value balance.
 - Opaque payment-protocol payloads satisfy the
   [canonical encoding rules](draft-tachyon-bundle-format.md#canonicalencodings), and
   their bytes are committed by the transaction's signature hash as described under
@@ -304,12 +336,13 @@ section specifies block-scoped coverage and proof-verification procedures.
 The anchor, epoch-window, and accumulator rules below additionally depend on chain
 state.
 
-- Each stamp's declared coverage matches the actions in its own bundle and all
-  bundles referring to it. Those references resolve to a proof-bearing bundle in
-  the same block, the covered action descriptors are distinct, and the stamp
-  publishes exactly two tachygrams per covered action.
+- Each stamp's declared coverage matches the actions and fee descriptors in its
+  own bundle and all bundles referring to it. Those references resolve to a
+  proof-bearing bundle in the same block, the covered action descriptors and fee
+  descriptors are each distinct, and the stamp publishes exactly two tachygrams
+  per covered action plus one fee change note commitment per covered bundle.
 - Each stamp proof verifies against its anchor and the multiset commitments
-  reconstructed from the covered action digests and published tachygrams.
+  reconstructed from the covered action and fee digests and published tachygrams.
 - Each stamp anchor identifies an accepted end-of-block pool state in the
   epoch of the block being validated or the immediately preceding epoch.
 - A stamp's tachygrams are distinct from one another, from those of every other
@@ -383,6 +416,8 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 
 [^protocol-tachyon-nullifiers]: Zcash Protocol Specification, Tachyon nullifier derivation and proof constraints. TODO: Add the version and section references once specified.
 
+[^protocol-tachyon-fees]: Zcash Protocol Specification, Tachyon dynamic fees, fee change notes, and proof constraints. TODO: Add the version and section references once specified.
+
 [^protocol-tachyon-consensus]: Zcash Protocol Specification, Tachyon transaction and block consensus rules. TODO: Add the version and section references once specified.
 
 [^protocol-tachyon-multisetcommit]: Zcash Protocol Specification, Tachyon multiset commitment construction. TODO: Add the version and section references once specified.
@@ -408,6 +443,8 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 [^tachyon-notes]: [The Tachyon Book: Notes](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/notes.md)
 
 [^tachyon-note-implementation]: [Tachyon reference implementation: Notes and note commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/note.rs)
+
+[^tachyon-fees]: [The Tachyon Book: Dynamic Fee](https://github.com/tachyon-zcash/tachyon/blob/eeddbb77512cbc92ce0535e99d46e5d91e6feeca/book/src/fee.md)
 
 [^tachyon-authorization]: [The Tachyon Book: Authorization — Value Balance](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/authorization.md#value-balance)
 
