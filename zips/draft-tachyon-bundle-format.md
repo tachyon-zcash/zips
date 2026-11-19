@@ -46,35 +46,44 @@ Stamp
 :   The proof-bearing protocol object defined under
     [Stamp](draft-tachyon-shielded-protocol.md#stamp) in the Tachyon Shielded Protocol ZIP.
     This ZIP defines two wire forms for a bundle's final section: a proof stamp
-    carrying that object, or a pointer stamp referring to a covering transaction.
+    carrying that object, or an empty stripped stamp.
 
 The remaining terms are defined by this ZIP:
 
 Bundle
-:   The Tachyon section of a transaction: actions, a value balance, a maximum-fee value commitment, action signatures, a binding signature, and a state-dependent stamp.
+:   The Tachyon section of a transaction: a body carrying actions, signatures,
+    tachygrams, value balance, and fee data, followed by a state-dependent stamp.
 
 Bundle state
-:   The three-valued wire discriminator `tachyonBundleState` selecting no bundle, a proof stamp, or a pointer stamp.
+:   The three-valued wire discriminator `tachyonBundleState` selecting no bundle, a proof stamp, or a stripped stamp.
 
 Action
 :   The triple $(\mathsf{cv}, \mathsf{rk}, \mathsf{sig})$: a value commitment, a randomized verification key, and a signature over the transaction sighash.
     An action effects a spend or an output; both forms share this encoding, and consensus applies the same rules to each.
 
 Action digest
-:   The Poseidon digest of an action's $(\mathsf{cv}, \mathsf{rk})$ pair.
+:   The Poseidon digest binding an action's $(\mathsf{cv}, \mathsf{rk})$
+    descriptor to its unordered tachygram pair.
 
 Descriptor digest
 :   The BLAKE2b-256 digest of a sequence of action descriptors (see [Action descriptor digests](#actiondescriptordigests)).
 
 Proof stamp
-:   A wire representation of a stamp, carrying the containing bundle's actual fee, a Ragu proof, and supporting verification data: a digest of the covered action and fee descriptors, an anchor, and the stamp's tachygrams.
-    The proof attests that every covered action and fee satisfies the Tachyon protocol rules.
+:   A wire representation of a stamp, carrying a Ragu proof, an anchor, a
+    tachygram multiset commitment, and the `txid`s of the other transactions it
+    covers. The proof attests that every covered action and fee satisfies the
+    Tachyon protocol rules.
 
-Pointer stamp
-:   A wire form carrying the containing bundle's actual fee and `tachyonAggregateId`, the `wtxid` of a covering transaction, in place of a proof stamp.
+Stripped stamp
+:   An empty wire form used when another transaction carries the covering proof.
 
 Covering transaction
-:   The proof-stamped transaction whose stamp covers a pointer-stamped transaction's actions and fee descriptor, named by the pointer-stamped bundle's `tachyonAggregateId`.
+:   The proof-stamped transaction whose stamp covers its own bundle and the
+    stripped bundles identified by its adjunct list.
+
+Adjunct
+:   A transaction whose Tachyon bundle is covered by another transaction's stamp.
+    Its bundle is stripped when included in a block.
 
 # Abstract
 
@@ -83,8 +92,11 @@ deployed through ZIP 248's extensible transaction format[^zip-0248] or incorpora
 directly into a new transaction format. Its encoding and integration details may
 be revised as ZIP 248 and other related draft ZIPs evolve.
 
-This ZIP specifies the consensus wire format of the Tachyon bundle: a three-state discriminator byte, a bundle body carrying actions, a value balance, a maximum-fee value commitment, and signatures, and a stamp carrying the actual fee and either a proof (with the public data needed to verify it) or a pointer to a covering transaction.
-It defines the canonical field encodings and sequence orders, the action, fee, and coverage digests, and the use of the shielded protocol's multiset commitments in bundle verification.
+This ZIP specifies the consensus wire format of the Tachyon bundle: a three-state
+discriminator byte, a body carrying actions, signatures, tachygrams, value balance,
+and fee data, and either a proof stamp or an empty stripped stamp.
+It defines the canonical field encodings and sequence orders, the action and fee
+digests, and the use of the shielded protocol's multiset commitments in bundle verification.
 It further defines the bundle's transaction-digest inputs, the consensus rules scoped to a single bundle, and the block-scoped rules that validate a block's bundles together.
 It defines the transaction representation of the
 [*Tachyon pool*](draft-tachyon-shielded-protocol.md), just as ZIP 225 [^zip-0225]
@@ -92,20 +104,24 @@ defines the v5 transaction fields for the [Orchard shielded protocol](zip-0224.r
 
 # Motivation
 
-To improve scalability, the [Tachyon shielded protocol](draft-tachyon-shielded-protocol.md) introduces support for [proof aggregation](draft-tachyon-shielded-protocol.md#prooftree): the [stamps](draft-tachyon-shielded-protocol.md#stamp) of many transactions merge into one covering stamp, and covered transactions appear in a block with their stamp stripped and replaced by a [pointer](#pointerstamp).
+To improve scalability, the [Tachyon shielded protocol](draft-tachyon-shielded-protocol.md) introduces support for [proof aggregation](draft-tachyon-shielded-protocol.md#prooftree): the [stamps](draft-tachyon-shielded-protocol.md#stamp) of many transactions merge into one covering stamp, and covered transactions appear in a block with their stamp [stripped](#strippedstamp).
 The transaction format must therefore allow a stamp to be removed without changing the transaction's identity and without invalidating any signature.
-This forces the effecting/authorizing split down into the wire layout: the bundle's contribution to the signed data is confined to the body and is identical across bundle states, while the strippable part is isolated in the stamp.
+The body separates effecting data from signing and proving data. Its contents,
+including tachygrams and fees, remain with their originating transaction when the
+stamp is stripped.
 
-A single format serves every transaction role: one proof-stamped form whether the proof covers only the bundle's own actions and fee descriptor or other transactions' (through aggregation) as well, and a covered transaction is the same body under a pointer stamp.
-A pointer-stamped transaction retains the data needed for its signature and balance checks; proof coverage is checked using the covering transaction and the other bundles in the block.
+A single format serves every transaction role: a proof stamp covers its own
+bundle and lists the `txid`s of any other covered transactions. A stripped bundle
+retains the data needed for signature, balance, and proof verification; block
+validation resolves coverage from the proof stamps' adjunct lists.
 
 # Requirements
 
 * A transaction's `txid` contribution is invariant across stamping, merging, stripping, re-stamping, and fee adjustments.
-* Proof-stamped and pointer-stamped forms carry identical effecting data; only the stamp differs.
+* Proof-stamped and stripped forms carry identical bodies; only the state byte and stamp differ.
 * Every field a validator needs for signature and balance verification is present in both states.
 * Encodings are canonical: each parsed bundle has exactly one serialization.
-* The proof field has a fixed size, so parsing requires no untrusted length.
+* The proof field is length-prefixed, with its size bounded before allocation.
 * Bundles with no actions are representable, under both stamp forms.
 
 # Non-requirements
@@ -124,8 +140,8 @@ This ZIP does not independently define:
   [Tachygram accumulator](draft-tachyon-shielded-protocol.md#tachygramaccumulator),
   [Epochs](draft-tachyon-shielded-protocol.md#epochs), and
   [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks);
-* the complete transaction digest trees, digest leaf algorithms, or sighash
-  algorithm. These use the ZIP 244 framework [^zip-0244], with Tachyon-specific
+* the complete transaction digest trees or sighash algorithm. These use the
+  ZIP 244 framework [^zip-0244], with Tachyon-specific
   integration still to be specified as noted under
   [Transaction digest contributions](#transactiondigestcontributions);
 * P2P aggregation messages, covered-transaction discovery, or mempool and relay policy;
@@ -144,8 +160,8 @@ The first byte of the section, `tachyonBundleState`, selects the bundle state:
 | value         | state         | bundle contents                                       |
 | ------------- | ------------- | ----------------------------------------------------- |
 | `0b0000_0000` | non-tachyon   | no bundle                                             |
-| `0b0000_0001` | proof stamp   | bundle with fee, coverage digest, anchor, tachygrams, proof |
-| `0b0000_0010` | pointer stamp | bundle with fee and covering transaction's wtxid       |
+| `0b0000_0001` | proof stamp   | body, anchor, tachygram commitment, adjunct txids, proof |
+| `0b0000_0010` | stripped stamp | body only                                            |
 | `...`         | *reserved*    | *n/a*                                                 |
 
 A parser MUST reject any other value of `tachyonBundleState`.
@@ -161,41 +177,39 @@ The complete wire layout across the serialized states:
 
 ### Bundle body encoding
 
-Present when `tachyonBundleState` is not `0x00`.
+Present when `tachyonBundleState` is not `0x00`. Fields appear in effecting,
+signing, then proving order. Signing and proving fields are authorization data.
 
-| Bytes                  | Name                   | Data Type                   | Description                          |
-| ---------------------- | ---------------------- | --------------------------- | ------------------------------------ |
-| 8                      | `valueBalanceTachyon`  | `int64`                     | Spends minus outputs and maximum fee |
-| 1 or 3                 | `nActionsTachyon`      | `compactSize`               | Number of Tachyon actions, 0 to 4095 |
-| 64 * `nActionsTachyon` | `vActionsTachyon`      | `byte[64][nActionsTachyon]` | Action descriptor per action         |
-| 32                     | `cvFeeMaxTachyon`      | `byte[32]`                  | Maximum-fee value commitment         |
-| 64 * `nActionsTachyon` | `vActionSigsTachyon`   | `byte[64][nActionsTachyon]` | Authorizing signature per action     |
-| 64                     | `bindingSigTachyon`    | `byte[64]`                  | Binding signature for the bundle     |
-| 1 or 3                 | `nMemoTachyon`         | `compactSize`               | Byte length of memo, 0 or more       |
-| `nMemoTachyon`         | `vMemoTachyon`         | `byte[nMemoTachyon]`        | Opaque bytes                         |
+| Section | Bytes | Name | Data Type | Description |
+| ------- | ----- | ---- | --------- | ----------- |
+| Effecting | 8 | `valueBalanceTachyon` | `int64` | Spends minus outputs and maximum fee |
+| | 1 or 3 | `nActionsTachyon` | `compactSize` | Number of Tachyon actions, 0 to 4095 |
+| | 64 * `nActionsTachyon` | `vActionsTachyon` | `byte[64][nActionsTachyon]` | Action descriptor per action |
+| | 32 | `cvFeeMaxTachyon` | `byte[32]` | Maximum-fee value commitment |
+| | 1, 3, or 5 | `nMemoTachyon` | `compactSize` | Byte length of memo, 0 or more |
+| | `nMemoTachyon` | `vMemoTachyon` | `byte[nMemoTachyon]` | Opaque bytes |
+| Signing | 64 * `nActionsTachyon` | `vActionSigsTachyon` | `byte[64][nActionsTachyon]` | Authorizing signature per action |
+| | 64 | `bindingSigTachyon` | `byte[64]` | Binding signature for the bundle |
+| Proving | 64 * `nActionsTachyon` | `vActionTachygramsTachyon` | `byte[32][2][nActionsTachyon]` | Tachygram pair per action |
+| | 8 | `vFeeTachyon` | `uint64` | Actual fee of this bundle |
+| | 32 | `cmChangeTachyon` | `byte[32]` | Fee change note commitment |
 
 ### Proof stamp encoding
 
 Present when `tachyonBundleState` is `0x01`.
 
-| Bytes                  | Name                   | Data Type                   | Description                          |
-| ---------------------- | ---------------------- | --------------------------- | ------------------------------------ |
-| 8                      | `vFeeTachyon`          | `uint64`                    | Actual fee of the containing bundle  |
-| 32                     | `hStampCoverageTachyon` | `byte[32]`                 | Digest of covered actions and fees   |
-| 32                     | `anchorTachyon`        | `byte[32]`                  | Pool state anchor                    |
-| 32                     | `cTachygrams`          | `byte[32]`                  | Multiset commitment to tachygrams    |
-| 1 or 3                 | `nTachygrams`          | `compactSize`               | Number of tachygrams, 1 to 8191      |
-| 32 * `nTachygrams`     | `vTachygrams`          | `byte[32][nTachygrams]`     | Tachygrams                           |
-| `PROOF_SIZE`           | `proofTachyon`         | `byte[PROOF_SIZE]`          | Ragu proof                           |
+| Bytes | Name | Data Type | Description |
+| ----- | ---- | --------- | ----------- |
+| 32 | `anchorTachyon` | `byte[32]` | Pool state anchor |
+| 32 | `cTachygrams` | `byte[32]` | Commitment to the covered tachygram union |
+| 1 or 3 | `nAdjunctsTachyon` | `compactSize` | Number of other covered transactions, 0 to 8190 |
+| 32 * `nAdjunctsTachyon` | `vAdjunctsTachyon` | `byte[32][nAdjunctsTachyon]` | Covered transaction txids, strictly ascending |
+| 1, 3, or 5 | `sizeProofTachyon` | `compactSize` | Byte length of the Ragu proof |
+| `sizeProofTachyon` | `proofTachyon` | `byte[sizeProofTachyon]` | Ragu proof, including its envelope |
 
-### Pointer stamp encoding
+### Stripped stamp encoding
 
-Present when `tachyonBundleState` is `0x02`.
-
-| Bytes                  | Name                   | Data Type                   | Description                          |
-| ---------------------- | ---------------------- | --------------------------- | ------------------------------------ |
-| 8                      | `vFeeTachyon`          | `uint64`                    | Actual fee of the containing bundle  |
-| 64                     | `tachyonAggregateId`   | `byte[64]`                  | wtxid of a covering transaction      |
+When `tachyonBundleState` is `0x02`, the trailer is empty.
 
 ## Bundle body
 
@@ -204,15 +218,23 @@ When `tachyonBundleState` is not `0x00`, the body follows the discriminator byte
 `valueBalanceTachyon` is a two's-complement signed 64-bit integer in little-endian byte order.
 `vActionsTachyon` is a sequence of `nActionsTachyon` action descriptors, each the 32-byte encoding of $\mathsf{cv}$ followed by the 32-byte encoding of $\mathsf{rk}$.
 `vActionSigsTachyon` is a sequence of `nActionsTachyon` 64-byte signatures; the $i$-th signature authorizes the $i$-th descriptor.
-Both sequences share the single count `nActionsTachyon`, so a count mismatch between descriptors and signatures is unrepresentable.
+`vActionTachygramsTachyon` contains one pair of tachygrams per action, in the same
+order. All three sequences share the single count `nActionsTachyon`, so a count
+mismatch between descriptors, signatures, and pairs is unrepresentable.
 The descriptor sequence's order is the transaction author's choice.
 The semantics of spends and outputs are described in the shielded-protocol ZIP's
 [Proof tree](draft-tachyon-shielded-protocol.md#prooftree) section.
 
-`cvFeeMaxTachyon` is the maximum-fee note's value commitment, included in the signed
-body. The actual fee, `vFeeTachyon`, is carried at the start of either stamp form.
+`cvFeeMaxTachyon` is the maximum-fee note's value commitment, included in the
+effecting data. The actual fee, `vFeeTachyon`, and fee change note commitment,
+`cmChangeTachyon`, are proving data in the body.
 The fee mechanism is specified under
 [Dynamic fees](draft-tachyon-shielded-protocol.md#dynamicfees) in the shielded-protocol ZIP.
+
+The body's `vActionTachygramsTachyon` and `cmChangeTachyon` contain exactly
+$2 \cdot \mathsf{nActionsTachyon} + 1$ tachygrams. A parser MUST reject any duplicate
+among these values, in either bundle state. Their roles are specified under
+[Tachygrams](draft-tachyon-shielded-protocol.md#tachygrams).
 
 `vMemoTachyon` is an opaque recipient-directed payload of `nMemoTachyon` bytes; `nMemoTachyon` of $0$ encodes an absent payload.
 The memo contributes to `txid` and the sighash ([Transaction digest contributions](#transactiondigestcontributions)) rather than to `auth_digest`, so it is identical across bundle states.
@@ -242,16 +264,21 @@ Tachyon-specific inputs and pending integration with the ZIP 244 framework
 
 ## Action digests
 
-Each action has an action digest, a Poseidon hash of its $(\mathsf{cv}, \mathsf{rk})$ pair.
-Let $(\mathsf{cv}_x, \mathsf{cv}_y)$ and $(\mathsf{rk}_x, \mathsf{rk}_y)$ be the affine Pallas coordinates of the action's decompressed $\mathsf{cv}$ and $\mathsf{rk}$.
+Each action digest binds its $(\mathsf{cv}, \mathsf{rk})$ descriptor to its
+unordered tachygram pair $(t_0, t_1)$ from `vActionTachygramsTachyon`.
+Let $(\mathsf{cv}_x, \mathsf{cv}_y)$ and $(\mathsf{rk}_x, \mathsf{rk}_y)$ be the
+affine Pallas coordinates of the action's decompressed $\mathsf{cv}$ and $\mathsf{rk}$.
 Then
 
-$$d = \mathrm{Poseidon}\bigl(
-    \mathsf{dom},\ \mathsf{cv}_x,\ \mathsf{cv}_y,\ \mathsf{rk}_x,\ \mathsf{rk}_y
-  \bigr)$$
+$$d = \mathrm{Poseidon}_{\texttt{Tachyon-ActionDg}}\bigl(
+   \mathsf{cv}_x,\ \mathsf{cv}_y,\ \mathsf{rk}_x,\ \mathsf{rk}_y,\ t_0+t_1,\ t_0t_1
+ \bigr).$$
 
-where $\mathsf{dom}$ is the Pallas base field element whose integer value is the little-endian interpretation of the 16-byte ASCII string `Tachyon-ActionDg`.
-The Poseidon instance (width, rounds, round constants, and mode) is the instance fixed by the Ragu proof system.
+The tagged Poseidon instance initializes the rate to zero and the capacity to
+the Pallas base-field element whose integer value is the little-endian
+interpretation of the 16-byte ASCII string `Tachyon-ActionDg`. It absorbs only
+the six displayed field elements. The width, rounds, round constants, and mode
+are fixed by the Ragu proof system.[^tachyon-poseidon]
 
 If an action's $\mathsf{cv}$ or $\mathsf{rk}$ is the identity point, it has no affine coordinates, the digest is undefined, and the transaction is invalid.
 
@@ -266,42 +293,33 @@ $$\mathsf{h} = \text{BLAKE2b-256}\bigl(
 
 The digest of the empty sequence is the hash of the empty string under the same personalization.
 
-This construction is used for two distinct digests, over two distinct sequences:
+`hActionsTachyon`, an input to the
+[effecting digest contribution](#transactiondigestcontributions), is computed over
+the bundle's own actions in their `vActionsTachyon` wire order. It is not carried
+on the wire.
 
-* `hActionsTachyon`, an input to the
-  [effecting digest contribution](#transactiondigestcontributions), is computed over
-  the bundle's own actions in their `vActionsTachyon` wire order.
-  It is not carried on the wire.
-* `hStampActionsTachyon`, an input to [stamp coverage](#feedescriptorsandstampcoverage), is computed over every action a proof stamp covers, first sorted into ascending lexicographic order. It is not carried separately on the wire.
-  Sorting makes it a function of the covered action multiset alone, independent of which transactions contributed it, or in what order a merge combined them.
-
-## Fee descriptors and stamp coverage
+## Fee descriptors and digests
 
 Each covered bundle contributes one fee descriptor, the pair
 `(cvFeeMaxTachyon, vFeeTachyon)`. Its 40-byte encoding is the commitment's 32-byte
 encoding followed by the fee's 8-byte little-endian encoding. The descriptor is
-assembled from the body and stamp fields, not serialized separately.
+assembled from body fields, not serialized separately.
 
 For affine Pallas coordinates $(\mathsf{cv}_{\max,x}, \mathsf{cv}_{\max,y})$ of the
-maximum-fee commitment, its fee digest is
+maximum-fee commitment, its fee digest also binds the bundle's fee change:
 
-$$d_{\mathrm{fee}} = \mathrm{Poseidon}\bigl(
-    \mathsf{dom}_{\mathrm{fee}},\ \mathsf{cv}_{\max,x},\ \mathsf{cv}_{\max,y},\ \mathsf{fee}
-  \bigr).$$
+$$d_{\mathrm{fee}} = \mathrm{Poseidon}_{\texttt{Tachyon-FeeDg}}\bigl(
+   \mathsf{cv}_{\max,x},\ \mathsf{cv}_{\max,y},\ \mathsf{fee},\ \mathsf{cm}_{\mathrm{change}}
+ \bigr).$$
 
-Here $\mathsf{fee}$ is `vFeeTachyon` encoded as a Pallas base-field element, and
-$\mathsf{dom}_{\mathrm{fee}}$ is the little-endian integer represented by the ASCII
-string `Tachyon-FeeDg` padded with three zero bytes to 16 bytes. The Poseidon
-instance is the one specified under [Action digests](#actiondigests).
+Here $\mathsf{fee}$ is `vFeeTachyon` encoded as a Pallas base-field element and
+$\mathsf{cm}_{\mathrm{change}}$ is `cmChangeTachyon`. The tagged Poseidon instance
+is specified under [Action digests](#actiondigests), with the capacity initialized
+from `Tachyon-FeeDg` padded with three zero bytes to 16 bytes.
 `cvFeeMaxTachyon` MUST NOT be the identity point, which has no affine coordinates.[^tachyon-fees]
 
-`hStampFeesTachyon` is the BLAKE2b-256 hash, with personalization `Tachyon-Fees`,
-of the concatenated 40-byte fee descriptors of all covered bundles, sorted in
-ascending lexicographic order. The proof stamp carries the combined digest:
-
-$$\mathsf{hStampCoverageTachyon} = \text{BLAKE2b-256}\bigl(
-    \text{"Tachyon-Coverage"},\ \mathsf{hStampActionsTachyon} \| \mathsf{hStampFeesTachyon}
-  \bigr).$$
+Descriptor distinctness is checked over the 40-byte pair, excluding
+`cmChangeTachyon`; the fee digest binds all three values.
 
 ## Multiset commitments
 
@@ -309,41 +327,45 @@ Multiset commitments MUST use the construction specified in the
 [Tachyon Shielded Protocol](draft-tachyon-shielded-protocol.md#multisetcommitments) ZIP.
 
 Each proof stamp binds two commitments: `cStampActionsTachyon`, over the action
-and fee digests it covers, and `cTachygrams`, over its published tachygrams.
-Validators reconstruct `cStampActionsTachyon` from the covered action and fee
-descriptors; it is not serialized. The bundle carries `cTachygrams`, which validators MUST check against
-the commitment reconstructed from `vTachygrams`, as specified under
-[Block validity](#blockvalidity).
+and fee digests it covers, and `cTachygrams`, over the union of the covered bodies'
+tachygrams. Validators reconstruct `cStampActionsTachyon` from the covered action
+descriptors and their pairs, and fee descriptors and their change commitments;
+it is not serialized. The stamp carries `cTachygrams`, which validators MUST
+check against the commitment reconstructed from those same pairs and change
+commitments, as specified under [Block validity](#blockvalidity).
 
 ## Proof stamp
 
 When `tachyonBundleState` is `0x01`, the proof stamp follows the body, laid out as in the wire layout above.
 
-`hStampCoverageTachyon` commits to the action and fee descriptors of the bundle
-itself and every covered transaction, as specified under
-[Fee descriptors and stamp coverage](#feedescriptorsandstampcoverage).
-How a block's bundles are checked against it is specified in [Block validity](#blockvalidity).
+`vAdjunctsTachyon` lists the `txid` of every other transaction whose bundle the
+stamp covers. The carrying transaction MUST NOT appear in its own list. A stamp
+covering only its own bundle has an empty list. The list is strictly increasing
+by bytewise comparison of the 32-byte txids, excluding duplicates.
+[Block validity](#blockvalidity) specifies how these references are resolved.
 
 `anchorTachyon` references the pool state the proof is valid against; its semantics
 and the anchor-membership rule are specified in the Tachyon Shielded Protocol ZIP
 under [Tachygram accumulator](draft-tachyon-shielded-protocol.md#tachygramaccumulator)
 and [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks).
 
-`cTachygrams` is the multiset commitment ([Multiset commitments](#multisetcommitments)) over the tachygrams the stamp publishes.
-It is carried rather than derived by the reader, so a validator MUST confirm it against `vTachygrams` ([Block validity](#blockvalidity)).
+`cTachygrams` is the multiset commitment ([Multiset commitments](#multisetcommitments))
+over the union of `vActionTachygramsTachyon` and `cmChangeTachyon` from the stamp's
+own bundle and every listed adjunct. Validators MUST reconstruct this union and
+confirm its commitment against the carried point.
 
-`vTachygrams` publishes the stamp's tachygram multiset for data availability.
-The shielded-protocol ZIP specifies two
-[tachygrams per action](draft-tachyon-shielded-protocol.md#tachygrams) and one
-[fee change note commitment per bundle](draft-tachyon-shielded-protocol.md#dynamicfees).
-A stamp covering $N$ actions across $B$ bundles MUST have `nTachygrams` equal to
-$2N+B$. Both counts include the stamp's own bundle and every transaction it covers.
-The tachygrams within one proof stamp MUST be distinct; a transaction violating this rule is invalid.
-Block-level distinctness is a block-validity rule of this ZIP
-([Block validity](#blockvalidity)); cross-block distinctness within the retained
-epoch window is specified in the Tachyon Shielded Protocol ZIP under
-[Epochs](draft-tachyon-shielded-protocol.md#epochs) and
-[Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks).
+A stamp covering $N$ actions across $B$ bundles commits to $2N+B$ tachygrams,
+which MUST be distinct and number at most $8191$. Both counts include the
+stamp's own bundle and every transaction it covers. A parser MUST reject
+`nAdjunctsTachyon` greater than $8190$ before reading the list, and MUST reject
+a proof-stamped bundle if
+$2 \cdot \mathsf{nActionsTachyon} + \mathsf{nAdjunctsTachyon} + 1 > 8191$.
+These bounds follow from the maximum degree of the tachygram multiset polynomial.[^tachyon-bundle]
+
+Block-level distinctness is specified under [Block validity](#blockvalidity);
+cross-block distinctness within the retained epoch window is specified in the
+Tachyon Shielded Protocol ZIP under [Epochs](draft-tachyon-shielded-protocol.md#epochs)
+and [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks).
 
 `proofTachyon` is the Ragu proof.
 The statement it attests to, and the base rule that a stamp proof MUST verify
@@ -353,13 +375,15 @@ under [Stamp](draft-tachyon-shielded-protocol.md#stamp),
 [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks); how that rule
 is applied to a block's stamps is specified in [Block validity](#blockvalidity).
 
-## Pointer stamp
+<span id="pointerstamp"></span>
 
-When `tachyonBundleState` is `0x02`, the pointer stamp follows the body, laid out as in the wire layout above.
+## Stripped stamp
 
-`tachyonAggregateId` is the `wtxid` (ZIP 239 [^zip-0239]) of a covering transaction.
-It MUST NOT be all zero; the rule applies to every pointer-stamped transaction, with or without actions.
-Which transaction it must identify within a block is specified in [Block validity](#blockvalidity).
+When `tachyonBundleState` is `0x02`, no fields follow the body. Stripping preserves
+the entire body, including its tachygram pairs, actual fee, and fee change note
+commitment. The covering transaction lists this transaction's `txid`; the
+stripped bundle carries no reference to its covering transaction.
+[Block validity](#blockvalidity) requires exactly one covering proof stamp.
 
 ## Canonical encodings
 
@@ -369,49 +393,83 @@ Which transaction it must identify within a block is specified in [Block validit
   A parser MUST reject an encoding that does not decode to a point.
   `rk` MUST decode as a RedPallas validating key (§ 5.4.7 ‘RedDSA, RedJubjub, and RedPallas’).
   The identity point is excluded by the rules in [Action digests](#actiondigests) and
-  [Fee descriptors and stamp coverage](#feedescriptorsandstampcoverage).
+  [Fee descriptors and digests](#feedescriptorsanddigests).
 * `vFeeTachyon` is an unsigned 64-bit little-endian integer in zatoshis and MUST
   be at most `MAX_MONEY`.
-* `anchorTachyon` and each tachygram are canonical little-endian encodings of Pallas base field elements; a parser MUST reject an encoding whose value is not less than the field modulus.
+* `anchorTachyon`, `cmChangeTachyon`, and each action tachygram are canonical little-endian encodings of Pallas base field elements; a parser MUST reject an encoding whose value is not less than the field modulus.
 * `vActionsTachyon` carries no ordering requirement: the descriptors may appear in any sequence the transaction author chooses.
-  The signatures in `vActionSigsTachyon` follow their descriptors' positions regardless of that order.
-* The tachygrams in `vTachygrams` MUST be in ascending lexicographic order of their 32-byte encodings; a parser MUST reject a stamp whose tachygrams are out of order.
-  With the distinctness rule ([Proof stamp](#proofstamp)) the sequence is strictly increasing.
-* `cTachygrams` is a 32-byte compressed Vesta point; a parser MUST reject an encoding that does not decode to a point.
-  Whether it commits the stamp's `vTachygrams` is a block-validity property ([Block validity](#blockvalidity)).
+  The signatures and tachygram pairs follow their descriptors' positions.
+* Either order within a tachygram pair is valid. Provers SHOULD place the
+  numerically smaller field element first to avoid disclosing each member's role.
+  The authorization digest hashes pairs in their wire order.
+* `vAdjunctsTachyon` MUST be strictly increasing by bytewise comparison of its
+  32-byte txids; a parser MUST reject repeated or out-of-order entries.
+* `cTachygrams` is a 32-byte compressed Vesta point; a parser MUST reject an
+  encoding that does not decode to a nonidentity point. Whether it commits to
+  the covered bodies' tachygrams is a block-validity property ([Block validity](#blockvalidity)).
 * `vMemoTachyon` is an opaque byte string at parse time; this ZIP imposes no structure on its contents.
-* `hStampCoverageTachyon` is an opaque 32-byte string at parse time; whether it matches the covered actions and fees is a block-validity property ([Block validity](#blockvalidity)).
 * Signatures (`vActionSigsTachyon`, `bindingSigTachyon`) are opaque 64-byte strings at parse time; their validity is a verification-time property.
-* `proofTachyon` is exactly `PROOF_SIZE` bytes and MUST decode as a Ragu proof.
-  The proof encoding is defined by the Ragu proof system.
+* `proofTachyon` MUST decode as a Ragu proof of exactly `sizeProofTachyon` bytes,
+  including its envelope. A parser MUST reject a length exceeding the proof
+  type's Ragu transport bound before allocating the frame, and MUST reject an
+  invalid envelope, truncated proof, or trailing bytes within the frame.
+  Block inclusion requires the `Compressed` proof form. `Uncompressed` proofs
+  use the same layout for merging and lifting before inclusion.[^tachyon-bundle]
 
 ## Transaction digest contributions
 
-The bundle contributes one leaf to each of the transaction's two digest trees (ZIP 244 [^zip-0244]).
-This section specifies the bundle's digest inputs, not the complete algorithms.
-ZIP 244 defines the existing framework, but does not yet specify Tachyon's extension.
+The bundle contributes one leaf to each of the transaction's two digest trees
+(ZIP 244 [^zip-0244]). The constructions below specify these contributions.[^tachyon-digests]
 
-TODO: Specify the Tachyon-specific digest leaf algorithms and personalizations,
-including `hMemoTachyon` and `hStampDataTachyon`, and their integration into the
-activating transaction format's digest trees and sighash algorithm.
+TODO: Specify their integration into the activating transaction format's digest
+trees and sighash algorithm, including final transaction-leaf personalizations.
 
-The effecting contribution (to `txid` and the sighash) commits to `hActionsTachyon`, the descriptor digest over the bundle's own actions ([Action descriptor digests](#actiondescriptordigests)), to `valueBalanceTachyon`, to `cvFeeMaxTachyon`, and to `hMemoTachyon`, the digest of `vMemoTachyon`.
-`hActionsTachyon` is distinct from `hStampActionsTachyon`, which may cover more actions than the bundle's own.
-The stamp, including the actual fee, is excluded, so the contribution is invariant across stamping, merging, stripping, re-stamping, and fee adjustments.
+In this section, $H_p(m)$ denotes BLAKE2b-256 with personalization $p$ and input
+$m$. Personalizations are zero-padded to 16 bytes. Integers use their little-endian
+wire encodings; points and field elements use their canonical wire encodings.
 
-The authorizing contribution (to `auth_digest`) commits to `tachyonBundleState`, to
-the action and binding signatures, and to the stamp. The stamp contributes a
-72-byte `stamp_digest`:
+The effecting contribution (to `txid` and the sighash) is
 
-* Proof stamp: `LE64(vFeeTachyon) || hStampCoverageTachyon || hStampDataTachyon`,
-  where `hStampDataTachyon` is a 32-byte digest committing to `proofTachyon`,
-  `anchorTachyon`, `cTachygrams`, and `vTachygrams`.
-* Pointer stamp: `LE64(vFeeTachyon) || tachyonAggregateId`.
+$$H_{\texttt{ZTxIdTachyonHash}}\bigl(
+\mathsf{hActionsTachyon} \| \mathsf{valueBalanceTachyon} \|
+\mathsf{cvFeeMaxTachyon} \| \mathsf{hMemoTachyon}\bigr),$$
 
-The state byte separates the two stamp forms, whose contributions share the
-72-byte shape. Changing the actual fee changes `auth_digest` and `wtxid`.
+where `hActionsTachyon` is the digest of the bundle's own action descriptors in
+wire order ([Action descriptor digests](#actiondescriptordigests)) and
+$\mathsf{hMemoTachyon} = H_{\texttt{Tachyon-Memo}}(\mathsf{vMemoTachyon})$.
+Tachygrams, the actual fee, and the stamp are excluded, so stamping, merging,
+stripping, re-stamping, and fee adjustments preserve this contribution.
 
-A transaction with no Tachyon bundle contributes distinctly from a bundle with no actions: no bundle produces the empty preimage, while every bundle's effecting contribution contains its encoded balance and its authorizing contribution contains at least its binding signature and `stamp_digest`.
+The authorizing contribution (to `auth_digest`) is
+
+$$H_{\texttt{ZTxAuthTachyHash}}\bigl(
+\mathsf{tachyonBundleState} \|
+\mathop{\|}_i (\mathsf{sig}_i \| t_{i,0} \| t_{i,1}) \|
+\mathrm{LE64}(\mathsf{vFeeTachyon}) \| \mathsf{cmChangeTachyon} \|
+\mathsf{bindingSigTachyon} \| \mathsf{hStampTachyon}\bigr).$$
+
+The concatenation contains one 128-byte signature-and-pair record per action,
+in action order, preserving each pair's wire order. This digest ordering differs
+from the body's wire ordering; neither `nActionsTachyon` nor a pair count is hashed.
+
+For a proof stamp:
+
+$$\begin{aligned}
+\mathsf{hStampProofTachyon} &= H_{\texttt{Tachyon-Proof}}\bigl(
+\mathsf{anchorTachyon} \| \mathsf{cTachygrams} \| \mathsf{proofTachyon}\bigr), \\
+\mathsf{hStampTachyon} &= H_{\texttt{Tachyon-Stamp}}\bigl(
+\mathsf{vAdjunctsTachyon} \| \mathsf{hStampProofTachyon}\bigr).
+\end{aligned}$$
+
+The proof bytes include the Ragu envelope, excluding `sizeProofTachyon`.
+Adjunct txids are concatenated in wire order, excluding `nAdjunctsTachyon`.
+For a stripped stamp, `hStampTachyon` is $H_{\texttt{Tachyon-Stamp}}$ of the empty
+string. Changing the fee, fee change, pair order, or stamp changes `auth_digest`
+and `wtxid`. A stripped bundle's `wtxid` is independent of its covering transaction.
+
+A transaction with no Tachyon bundle contributes the hash of the empty string
+under each transaction-leaf personalization. This differs from a present bundle
+with no actions, which still contributes its body and stamp digest.
 
 ## Bundle validity
 
@@ -425,11 +483,11 @@ The rules owned by this ZIP, applying to a single transaction's bundle:
 6. `bindingSigTachyon` MUST verify over the transaction sighash under the derived $\mathsf{bvk}$.
 7. `valueBalanceTachyon` MUST be in the range $-\mathrm{MAX\_MONEY}$ to $\mathrm{MAX\_MONEY}$ inclusive.
 8. A bundle with no actions MUST have `valueBalanceTachyon` and `vFeeTachyon` equal to $0$.
-9. A proof stamp's `proofTachyon` MUST be exactly `PROOF_SIZE` bytes and a valid proof encoding.
-10. A proof stamp's tachygrams MUST be distinct.
-11. A pointer stamp's `tachyonAggregateId` MUST NOT be all zero.
+9. A proof stamp's `proofTachyon` MUST satisfy the length, envelope, and proof-form rules under [Canonical encodings](#canonicalencodings).
+10. The tachygrams in a bundle's action pairs and fee change commitment MUST be distinct.
+11. A proof stamp's adjunct list MUST be strictly increasing, MUST NOT include its own transaction's `txid`, and MUST contain at most $8190$ entries.
 12. `vFeeTachyon` MUST be in the range $0$ to $\mathrm{MAX\_MONEY}$ inclusive.
-13. A proof stamp's `nTachygrams` MUST be in the range $1$ to $8191$ inclusive.
+13. `nActionsTachyon` MUST be at most $4095$. A proof-stamped bundle MUST also satisfy $2 \cdot \mathsf{nActionsTachyon} + \mathsf{nAdjunctsTachyon} + 1 \leq 8191$.
 
 Rules outside the scope of this ZIP are enumerated in [Non-requirements](#non-requirements).
 
@@ -439,36 +497,33 @@ The rules owned by this ZIP that constrain a block's Tachyon bundles together.
 A validator enforces them fail-fast, in this order:
 
 1. **Tachygram uniqueness.** All tachygrams in a block MUST be distinct.
-   The block's tachygrams are the multiset union of the `vTachygrams` of every proof stamp, and a single scan enforces this rule and the per-bundle distinctness of [Bundle validity](#bundlevalidity) rule 10 together; reject on any duplicate.
-   Reuse across blocks within the retained epoch window is governed by the
-   Tachyon Shielded Protocol ZIP's
-   [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks).
-2. **Proof coverage.** Every pointer-stamped transaction MUST bear a `tachyonAggregateId` identifying a proof-stamped transaction in the same block; reject if absent or not proof-stamped.
-   This also applies to a bundle with no actions: its fee descriptor MUST be
-   covered by the named stamp.
-3. **Coverage digest and tachygram count.** Collect the action and fee descriptors
-   from the proof stamp's own bundle and every pointer-stamped transaction naming
-   it. The action descriptors MUST be mutually distinct, as MUST the fee
-   descriptors. Sort each collection separately and compute
-   `hStampCoverageTachyon` as specified under
-   [Fee descriptors and stamp coverage](#feedescriptorsandstampcoverage);
-   reject on any repeated descriptor or mismatch with the carried digest.
-   For $N$ covered actions and $B$ covered bundles, `nTachygrams` MUST equal $2N+B$.
-   These checks use sorting, BLAKE2b-256 hashes, and integer arithmetic, with no
-   curve arithmetic.
-4. **Tachygram commitment.** Every proof stamp's carried `cTachygrams` MUST commit that stamp's `vTachygrams`.
-   Form the multiset commitment over the stamp's tachygrams ([Multiset commitments](#multisetcommitments)) and reject on mismatch with the carried point.
-   The check is curve arithmetic, so it follows the cheaper descriptor checks of rule 3.
-5. **Proof verification.** Every proof stamp MUST verify.
-   The validator reassembles the stamp PCD from `proofTachyon`, `anchorTachyon`,
-   the `cTachygrams` confirmed by rule 4, and `cStampActionsTachyon` formed over the
-   confirmed action and fee digests ([Action digests](#actiondigests),
-   [Fee descriptors and stamp coverage](#feedescriptorsandstampcoverage),
-   [Multiset commitments](#multisetcommitments)); reject if any proof fails.
-   The base requirement that a proof verifies the Tachyon statement is specified
-   in the Tachyon Shielded Protocol ZIP's
-   [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks); this rule
-   applies it per stamp within a block.
+   Collect `vActionTachygramsTachyon` and `cmChangeTachyon` from every bundle body,
+   whether proof-stamped or stripped, and reject any duplicate. Reuse across
+   blocks within the retained epoch window is governed by the Tachyon Shielded
+   Protocol ZIP's [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks).
+2. **Proof coverage.** Every `txid` in a proof stamp's `vAdjunctsTachyon` MUST
+   identify exactly one transaction in the same block, whose Tachyon bundle
+   MUST be stripped. Every stripped bundle MUST be listed by exactly one proof
+   stamp, including bundles with no actions. A validator MUST check for unlisted
+   stripped bundles across the entire block; traversing adjunct lists alone is
+   insufficient.[^tachyon-aggregation]
+3. **Covered descriptors and tachygram bound.** For each proof stamp, collect its
+   own bundle and the stripped bundles listed by its `vAdjunctsTachyon`. Their
+   action descriptors MUST be mutually distinct, as MUST their fee descriptors.
+   For $N$ covered actions and $B$ covered bundles, $2N+B$ MUST NOT exceed $8191$.
+   Reject repeated descriptors or an exceeded bound before curve arithmetic.
+4. **Tachygram commitment.** Reconstruct the multiset commitment over the action
+   pairs and fee change commitments from those covered bodies
+   ([Multiset commitments](#multisetcommitments)). It MUST equal the stamp's
+   carried `cTachygrams`.
+5. **Proof verification.** Every proof stamp MUST verify against its anchor,
+   the `cTachygrams` confirmed by rule 4, and `cStampActionsTachyon` reconstructed
+   from the covered action and fee digests ([Action digests](#actiondigests),
+   [Fee descriptors and digests](#feedescriptorsanddigests),
+   [Multiset commitments](#multisetcommitments)). The base requirement that a
+   proof verifies the Tachyon statement is specified in the Tachyon Shielded
+   Protocol ZIP's [Per-stamp checks](draft-tachyon-shielded-protocol.md#per-stampchecks);
+   this rule applies it per stamp within a block.
 
 # Rationale
 
@@ -478,7 +533,7 @@ This subsection is non-normative.
 
 The effecting contribution excludes the stamp, so stamping, merging, stripping, re-stamping, and fee adjustments preserve a transaction's logical identity.
 This allows proof aggregation without changing the transaction its author signed:
-a pointer-stamped transaction retains the same effecting data and signatures.
+a stripped transaction retains the same body and signatures.
 
 ## Zero-action balance
 
@@ -495,57 +550,54 @@ remain part of the covering proof.
 The action and fee digests hash affine coordinates, which the identity point lacks.
 Excluding it also rejects a degenerate verification key and a degenerate value commitment.
 
-## `hStampActionsTachyon` is sorted for reconstruction agreement
+## Adjunct txids are sorted
 
-`hStampActionsTachyon` can cover many transactions' actions, combined by whatever merge tree an aggregator chose.
-Sorting before hashing makes it a function of the covered multiset alone, so any party reconstructs the same digest regardless of merge history.
-The same ordering rule applies to fee descriptors in `hStampFeesTachyon`, so the
-combined `hStampCoverageTachyon` also agrees across reconstructions.
-The multiset commitments ([Multiset commitments](#multisetcommitments)) get this order-independence for free, as polynomial multiplication.
+Sorting `vAdjunctsTachyon` gives each adjunct set one wire encoding and excludes
+repeated entries. The list identifies the covered bundles directly; validators
+reconstruct the proof inputs from those bodies.
 
 ## Covered actions are required to be distinct
 
 Two identical descriptors carry an identical $\mathsf{rk}$, so the same signature would authorize both if they sign the same transaction sighash.
-A descriptor digest can be computed over a collection containing duplicates, so digest agreement alone does not establish distinctness.
-[Block validity](#blockvalidity) rule 3 therefore rejects repeated action or fee descriptors before digest comparison and proof verification.
+Multiset commitments preserve multiplicity and do not establish distinctness.
+[Block validity](#blockvalidity) rule 3 therefore rejects repeated action or fee
+descriptors before commitment reconstruction and proof verification.
 
-## `vTachygrams` is sorted against `wtxid` malleability
+## Tachygram pairs are unordered
 
-The stamp is authorizing data that no signature covers ([Signatures survive stripping](#signaturessurvivestripping)), and the proof commits to `vTachygrams` order-independently, so only a canonical order pins its wire form.
-Without one, an observer could reorder `vTachygrams` to mint a distinct `wtxid` for byte-identical semantic content.
-Requiring sorted order gives it the one serialization that `vActionsTachyon` gets from its signature coverage instead.
-
-## A flat hash, not an algebraic commitment, carries coverage
-
-The carried field serves coverage identification and fail-fast confirmation.
-The proof binds the action and fee digests through `cStampActionsTachyon`, which validators reconstruct from the confirmed descriptors, so the carried field needs no algebraic structure: a flat hash commits the coverage and reconstructs with no curve arithmetic.
+The action digest binds a pair through its sum and product, so swapping its two
+members preserves the proof statement. Either wire order is accepted, while the
+authorization digest records the order actually transmitted. A prover sorts
+each pair numerically to avoid revealing which member is a commitment,
+nullifier, or padding value.
 
 ## Deterministic multiset commitments
 
 The committed multisets are public data, so a hiding commitment is unnecessary; determinism is what lets any party recompute a commitment from the data it covers.
 
-## Fixed-size proof
+## Length-prefixed proof
 
-This draft assumes a proof size independent of the number of covered actions.
-A constant-size proof field needs no length prefix.
-The whole stamp is not constant-size: its tachygram vector grows with the published multiset.
+A length prefix frames the Ragu proof and its envelope. Bounding that length
+before allocation limits untrusted input; exact decoding rejects extra bytes
+within the frame.
 
-## `wtxid`, not `txid`, in `tachyonAggregateId`
+## Adjuncts are referenced by txid
 
-A `txid` is ambiguous across the authorization forms that share it; the `wtxid` pins the physical covering transaction, stamp included, which is what the pointer-stamped transaction needs to reference.
-
-## Nonzero `tachyonAggregateId`
-
-Every pointer-stamped bundle names a covering transaction, and the unassigned pointer state has no valid wire form.
-The all-zero value is reserved for an unassigned pointer and is invalid on the wire.
+An aggregate lists its adjuncts, so lifting or rerandomizing the aggregate does
+not require rewriting them. A `txid` identifies effecting data; the covering
+proof additionally binds each adjunct's actual fee, fee change, and unordered
+action pairs. A body with different values fails verification.
 
 # Security Implications
 
 This subsection is non-normative.
 
-## Canonical encodings, except action order
+## Canonical encodings and ordering
 
-The canonical-encoding rules restrict how field values and the tachygram sequence are serialized; they do not imply that a transaction has only one valid proof or set of signatures.
+The canonical-encoding rules restrict field encodings and adjunct-list order;
+they do not imply that a transaction has only one valid proof, set of signatures,
+or ordering of each tachygram pair. Swapping a pair changes `auth_digest` and
+`wtxid` without changing its proof statement.
 Reordering distinct action descriptors changes `hActionsTachyon`, and therefore the sighash every signature covers, so existing signatures do not authorize the reordered transaction.
 Leaving action order to the author's choice is the same property Sapling and Orchard rely on for their own unordered spend, output, and action arrays.
 Authorization-form changes (re-stamping, stripping) produce distinct bundles by design and are reflected in `auth_digest` and `wtxid` (ZIP 239 [^zip-0239]).
@@ -555,13 +607,22 @@ Authorization-form changes (re-stamping, stripping) produce distinct bundles by 
 The parser enforces no distinctness over `vActionsTachyon`, so a bundle carrying a repeated action descriptor parses.
 Each descriptor's $\mathsf{cv}$ enters the binding sum, so action multiplicity is load-bearing and the parser cannot deduplicate without changing the asserted balance; the action digests enter the stamp's `cStampActionsTachyon` alongside its covered fee digests.
 
-[Block validity](#blockvalidity) rule 3 explicitly rejects repeated action or fee descriptors in a proof stamp's combined coverage before comparing the coverage digest.
+[Block validity](#blockvalidity) rule 3 explicitly rejects repeated action or fee descriptors in a proof stamp's combined coverage before commitment reconstruction.
 This includes duplicates within one bundle and across bundles covered by the same stamp.
 The multiset commitment preserves repeated roots; it does not itself prohibit them.
 A parser must therefore preserve multiplicity rather than silently deduplicate the actions.
 
-`vTachygrams` is the opposite case.
-Repeated tachygrams violate the explicit distinctness rule, which the parser enforces directly ([Bundle validity](#bundlevalidity) rule 10).
+Repeated tachygrams in a body's action pairs or fee change commitment violate
+the explicit distinctness rule, which the parser enforces directly
+([Bundle validity](#bundlevalidity) rule 10).
+
+## Complete proof coverage
+
+A stripped bundle retains all its actions and balance data but carries no proof.
+An unlisted stripped bundle would therefore leave those values unproven. Block
+validation must check all stripped bundles for coverage, not only those reached
+through proof stamps' adjunct lists. A listed txid does not itself establish
+proof coverage: the reconstructed commitments and proof must also verify.
 
 ## Balance consistency is enforced by the binding property
 
@@ -589,16 +650,24 @@ This subsection is non-normative.
 ## Public data
 
 $\mathsf{cv}$ is a hiding commitment to the action's value; `cvFeeMaxTachyon` hides the maximum fee.
-The unlinkability of $\mathsf{rk}$ and tachygrams depends on the shielded protocol,
-not on their wire encoding; see
+The privacy of the underlying notes and keys depends on the shielded protocol; see
 [Keys and addresses](draft-tachyon-shielded-protocol.md#keysandaddresses) and
 [Tachygrams](draft-tachyon-shielded-protocol.md#tachygrams). Payload confidentiality
 and note discovery depend on the payment protocol, as discussed under
 [Privacy and Security Implications](draft-tachyon-shielded-protocol.md#privacyandsecurityimplications).
-The action count, the value balance, the actual fee, and, on a proof-stamped bundle, the tachygram count are public, as is anything derivable from them.
+The action count, value balance, actual fee, each action's tachygram pair, and
+the fee change note commitment are public. The pair is associated with its
+action, but its members are untyped. The separate fee change field identifies
+that tachygram as a note commitment.
 
-Aggregation does not hide in-block coverage: pointer stamps publicly name their
-covering transaction, including for bundles with no actions (see
+Comparing versions of a transaction re-proved for different epochs reveals which
+action pairs change (spends) and which stay fixed (outputs). A fee adjustment
+alone leaves the action pairs unchanged.[^tachyon-tachygrams] A delegate that
+knows a note's nullifier window can recognize its spending action from the
+published pair.[^tachyon-nullifiers]
+
+Aggregation does not hide in-block coverage: proof stamps publicly list their
+adjuncts' txids, including for bundles with no actions (see
 [Block validity](#blockvalidity)).
 
 # Deployment
@@ -626,7 +695,19 @@ provided by [Zakura PR #795](https://github.com/zakura-core/zakura/pull/795).
 
 [^protocol-orchardbalance]: [Zcash Protocol Specification, Version v2026.7.0-202-gafa086 [NU6.2]. Section 4.14: Balance and Binding Signature (Orchard)](protocol/protocol.pdf#orchardbalance)
 
-[^tachyon-fees]: [The Tachyon Book: Dynamic Fee](https://github.com/tachyon-zcash/tachyon/blob/eeddbb77512cbc92ce0535e99d46e5d91e6feeca/book/src/fee.md)
+[^tachyon-fees]: [The Tachyon Book: Dynamic Fee](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/fee.md)
+
+[^tachyon-tachygrams]: [The Tachyon Book: Tachygrams](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/tachygrams.md)
+
+[^tachyon-nullifiers]: [The Tachyon Book: Nullifiers](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/nullifiers.md)
+
+[^tachyon-bundle]: [The Tachyon Book: Bundles](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/bundle.md)
+
+[^tachyon-digests]: [The Tachyon Book: Transaction Identifiers](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/transaction-identifiers.md)
+
+[^tachyon-poseidon]: [Tachyon Poseidon digest implementation](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/crates/tachyon/src/digest/poseidon.rs)
+
+[^tachyon-aggregation]: [The Tachyon Book: Aggregation, Block rules](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/aggregation.md#block-rules)
 
 [^zip-0200]: [ZIP 200: Network Upgrade Mechanism](zip-0200.rst)
 

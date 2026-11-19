@@ -90,8 +90,10 @@ action types contribute exactly two values, so the tachygram count alone does no
 reveal the split between spends and outputs. Each covered bundle also contributes
 one [fee change note commitment](#dynamicfees).
 
-Tachygrams are published as an untyped multiset. The zero-knowledge proof enforces
-their correct derivation and association with the covered actions and fees.
+Each action’s tachygrams are published as an untyped pair in its originating
+bundle, with the bundle’s fee change note commitment in a separate field. The
+zero-knowledge proof enforces their correct derivation and association with the
+covered actions and fees.
 Consensus therefore need not distinguish note commitments from nullifiers or
 padding: it verifies the proof and applies the same duplicate-rejection
 rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
@@ -99,21 +101,20 @@ rules and accumulator updates to all tachygrams.[^tachyon-tachygrams]
 
 ## Stamp
 
-A stamp packages a recursive zero-knowledge proof, a pool-state anchor, and the
-[tachygrams](#tachygrams) associated with the actions and [fees](#dynamicfees) it
-covers. It also carries the actual fee of the bundle containing it. The anchor
-identifies the pool state referenced by the proof. The proof binds the covered
-actions and fee descriptors to the tachygrams and establishes the corresponding
-note-creation, spendability, and fee-change statements.[^protocol-tachyon-stamp-verification]
+A stamp packages a recursive zero-knowledge proof, a pool-state anchor, a
+multiset commitment to the covered [tachygrams](#tachygrams), and the `txid`s of
+other transactions whose bundles it covers. The anchor identifies the pool state
+referenced by the proof. The proof binds the covered actions and fee descriptors
+to the tachygrams and establishes the corresponding note-creation, spendability,
+and fee-change statements.[^protocol-tachyon-stamp-verification]
 
-A stamp can cover actions from a single transaction or aggregate actions from
-multiple transactions. [Aggregation](#prooftree) replaces
-the input stamps with a single stamp, while the actions and their signatures
-remain in their respective transactions.[^tachyon-proof-tree]
-The bundle-format ZIP specifies how
-[pointer stamps](draft-tachyon-bundle-format.md#pointerstamp) reference the covering
-transaction and how [block validation](draft-tachyon-bundle-format.md#blockvalidity)
-checks complete coverage.
+A stamp can cover a single transaction or aggregate multiple transactions.
+[Aggregation](#prooftree) replaces the input stamps with a single stamp, while
+actions, signatures, tachygrams, and fee data remain in their respective bundle
+bodies.[^tachyon-proof-tree] The bundle-format ZIP specifies the
+[adjunct list](draft-tachyon-bundle-format.md#proofstamp) and how
+[block validation](draft-tachyon-bundle-format.md#blockvalidity) checks complete
+coverage.
 
 
 ## Epochs
@@ -139,13 +140,12 @@ Spend proofs combine evidence of note creation, correct per-epoch nullifier
 derivation, and continued unspentness up to an anchor. Separate output steps prove
 correct construction of new notes. The action proofs are combined at a common
 anchor before applying the [dynamic fee mechanism](#dynamicfees) to produce a
-stamp. Its header binds an anchor and multiset commitments to the action and fee
-digests and to the tachygrams.
+stamp. The proof binds its anchor and multiset commitments to the covered action
+and fee digests and tachygrams.
 
 Stamps at a common anchor can be merged recursively to aggregate independently
 constructed transactions. Before merging, anyone with the published transaction and chain data (likely a miner or other aggregator) can use anchor-chain proofs to lift stamps to a later anchor within the same spending epoch, enabling them to be merged during aggregation. Validators check the resulting proof against commitments reconstructed from the
-covered actions, fee descriptors, and published tachygrams, and check the anchor
-against chain state.
+covered bundle bodies, and check the anchor against chain state.
 
 - PCD step statements and composition rules: [^protocol-tachyon-proof-tree]
 - Stamp public inputs and verification: [^protocol-tachyon-stamp-verification]
@@ -184,6 +184,11 @@ becomes a repeated root. These commitments therefore preserve multiplicity but
 not order. They are deterministic functions of the public multisets and reveal
 no information beyond those multisets.
 
+The bundle-format ZIP defines [action digests](draft-tachyon-bundle-format.md#actiondigests)
+that bind each action descriptor to its unordered tachygram pair, and
+[fee digests](draft-tachyon-bundle-format.md#feedescriptorsanddigests) that bind each
+fee descriptor to its fee change note commitment.
+
 The multiset commitment construction MUST be implemented as specified in the
 Zcash Protocol Specification.[^protocol-tachyon-multisetcommit]
 Design and implementation: [^tachyon-multisetcommit].
@@ -221,8 +226,8 @@ The principal changes are:
   $\mathsf{cm}$ and per-action entropy using a domain-separated derivation. For a
   spend, the randomized spend-validating key
   $\mathsf{rk} = \mathsf{ak} + [\alpha]\mathcal{G}$ therefore binds the action's
-  signed effecting data to the underlying note, even though its tachygrams are
-  carried separately in the stamp.[^tachyon-action-authorization]
+  signed effecting data to the underlying note. Its tachygrams are carried as
+  authorization data in the bundle body.[^tachyon-action-authorization]
 - The recipient is represented by a field-element payment key $\mathsf{pk}$,
   derived from $\mathsf{ak}$ and $\mathsf{nk}$ using domain-separated Poseidon,
   in place of Orchard's diversifier and diversified transmission key.
@@ -287,9 +292,10 @@ spendable note.
 
 A prover chooses an actual fee between zero and the maximum, and creates a
 _fee change note_ by subtracting that fee from the max fee note's value while
-retaining its other fields. The change note's commitment is published as a
-tachygram, even when its value is zero. Changing the fee requires a new stamp
-proof but no new transaction signatures.
+retaining its other fields. Its commitment and the actual fee are published in
+the originating bundle's body and retained when its stamp is stripped. The
+commitment is a tachygram even when the change value is zero. Changing the fee
+requires a new stamp proof but no new transaction signatures.
 
 The stamp covers a _fee descriptor_ comprising the maximum-fee value commitment
 and actual fee for each covered bundle. Its proof enforces the fee range and
@@ -312,13 +318,13 @@ the checks on individual bundles.
 ### Per-bundle checks
 
 The bundle-format ZIP's [Bundle validity](draft-tachyon-bundle-format.md#bundlevalidity)
-rules apply to every bundle, whether it carries a stamp or refers to a stamp in
-another transaction. In summary:
+rules apply to every bundle, whether proof-stamped or stripped. In summary:
 
 - Bundle fields have canonical encodings and satisfy their type and range
   constraints. Each action's value commitment and authorization key are
   non-identity Pallas points, as is the maximum-fee value commitment. A bundle
   with no actions has zero value balance and zero maximum and actual fees.
+- The tachygrams in the action pairs and fee change note commitment are distinct.
 - Every action signature and the bundle's binding signature verify over the
   containing transaction's signature hash. The binding signature enforces
   consistency between the action value commitments, the maximum-fee value
@@ -336,24 +342,32 @@ section specifies block-scoped coverage and proof-verification procedures.
 The anchor, epoch-window, and accumulator rules below additionally depend on chain
 state.
 
-- Each stamp's declared coverage matches the actions and fee descriptors in its
-  own bundle and all bundles referring to it. Those references resolve to a
-  proof-bearing bundle in the same block, the covered action descriptors and fee
-  descriptors are each distinct, and the stamp publishes exactly two tachygrams
-  per covered action plus one fee change note commitment per covered bundle.
-- Each stamp proof verifies against its anchor and the multiset commitments
-  reconstructed from the covered action and fee digests and published tachygrams.
+- Each proof stamp covers its own bundle and the stripped bundles identified by
+  its adjunct txid list in the same block. Every stripped bundle is listed by
+  exactly one proof stamp. The covered action descriptors and fee descriptors
+  are each distinct.
+- Each stamp's tachygram multiset is reconstructed from the action pairs and fee
+  change note commitments in its covered bundle bodies. Its carried commitment
+  matches this multiset, and its proof verifies against the anchor and
+  reconstructed multiset commitments.
 - Each stamp anchor identifies an accepted end-of-block pool state in the
   epoch of the block being validated or the immediately preceding epoch.
-- A stamp's tachygrams are distinct from one another, from those of every other
-  stamp in the block, and from tachygrams published in earlier blocks of the
-  current or immediately preceding epoch. This check treats note commitments,
-  nullifiers, and padding identically.
+- Tachygrams are distinct across all bundle bodies in the block and from
+  tachygrams published in earlier blocks of the current or immediately preceding
+  epoch. This check treats note commitments, nullifiers, and padding identically.
 - Each stamp advances the pool-state accumulator in transaction order, with
   epoch transitions incorporated as specified under
   [Tachygram accumulator](#tachygramaccumulator).
 
 # Privacy and Security Implications
+
+Each action's tachygram pair and each bundle's fee change note commitment are
+publicly associated with their originating action or bundle. Comparing versions
+of the same transaction re-proved for different spending epochs distinguishes
+spends, whose pairs change, from outputs, whose pairs remain fixed. A fee
+adjustment alone leaves action pairs unchanged.[^tachyon-tachygrams] A delegate
+that knows a note's nullifier window can recognize its spending action from the
+published pair.[^tachyon-nullifiers]
 
 Confidential note transmission, recipient authentication, and note discovery are
 responsibilities of the chosen payment protocol. On-chain payloads are publicly
@@ -434,9 +448,9 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 
 [^tachyon-key-derivation]: [Tachyon reference implementation: Key derivation](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/keys/private.rs)
 
-[^tachyon-tachygrams]: [The Tachyon Book: Tachygrams](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/tachygrams.md)
+[^tachyon-tachygrams]: [The Tachyon Book: Tachygrams](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/tachygrams.md)
 
-[^tachyon-nullifiers]: [The Tachyon Book: Nullifiers](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/nullifiers.md)
+[^tachyon-nullifiers]: [The Tachyon Book: Nullifiers](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/nullifiers.md)
 
 [^evolving-nullifiers]: Sean Bowe and Ian Miers. [A Note on Notes: Towards Scalable Anonymous Payments via Evolving Nullifiers and Oblivious Synchronization](https://eprint.iacr.org/2025/2031). Cryptology ePrint Archive, Paper 2025/2031, 2025.
 
@@ -444,7 +458,7 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 
 [^tachyon-note-implementation]: [Tachyon reference implementation: Notes and note commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/note.rs)
 
-[^tachyon-fees]: [The Tachyon Book: Dynamic Fee](https://github.com/tachyon-zcash/tachyon/blob/eeddbb77512cbc92ce0535e99d46e5d91e6feeca/book/src/fee.md)
+[^tachyon-fees]: [The Tachyon Book: Dynamic Fee](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/fee.md)
 
 [^tachyon-authorization]: [The Tachyon Book: Authorization — Value Balance](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/authorization.md#value-balance)
 
@@ -452,7 +466,7 @@ transaction-format, digest, value-accounting, and history-tree support in [zakur
 
 [^tachyon-multisetcommit]: [Tachyon reference implementation: Multiset commitments](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/crates/tachyon/src/primitives/sets.rs)
 
-[^tachyon-proof-tree]: [The Tachyon Book: Proof tree](https://github.com/tachyon-zcash/tachyon/blob/9abdcec1a98f96d91e612b3a43f5a4140de989f0/book/src/proof-tree.md)
+[^tachyon-proof-tree]: [The Tachyon Book: Proof tree](https://github.com/tachyon-zcash/tachyon/blob/9d9af51a9c4e8ba1e19f5485eafe066e46137be9/book/src/proof-tree.md)
 
 [^zip-0224]: [ZIP 224: Orchard Shielded Protocol](zip-0224.rst)
 
